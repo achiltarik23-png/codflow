@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -41,7 +41,7 @@ function scriptSrcsFromHtml(): string[] {
 describe("description editor lazy-mount (ADR 0002, locked decision #1)", () => {
   it("keeps TipTap/ProseMirror out of every statically-loaded chunk", () => {
     let chunks = chunkFiles();
-    const hasEditorChunk = chunks.some((c) => EDITOR_CHUNK_RE.test(c.split("/").pop() as string));
+    const hasEditorChunk = chunks.some((c) => EDITOR_CHUNK_RE.test(basename(c)));
     if (!hasEditorChunk) {
       execSync("npm run build", {
         cwd: root,
@@ -76,7 +76,7 @@ describe("description editor lazy-mount (ADR 0002, locked decision #1)", () => {
       [...source.matchAll(/from"\.\/([^"]+\.js)"/g)].map((m) => m[1]);
 
     const editorChunks = chunkFiles().filter((c) => {
-      const name = c.split("/").pop() as string;
+      const name = basename(c);
       if (!EDITOR_CHUNK_RE.test(name)) return false;
       const content = readFileSync(c, "utf8");
       if (EDITOR_MARKERS.some((m) => content.includes(m))) return true;

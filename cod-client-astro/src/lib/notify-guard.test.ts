@@ -18,7 +18,7 @@ describe("toast feedback", () => {
   it("keeps react-hot-toast behind the shared host and adapter", () => {
     const imports = sourceFiles(SOURCE_ROOT)
       .filter((path) => /from\s+["']react-hot-toast["']/.test(readFileSync(path, "utf8")))
-      .map((path) => relative(SOURCE_ROOT, path))
+      .map((path) => relative(SOURCE_ROOT, path).split("\\").join("/"))
       .sort();
 
     expect(imports).toEqual(["components/ui/ToastHost.tsx", "lib/notify.ts"]);
