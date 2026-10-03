@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - dashboard image uploads now fall back to the Worker’s R2 binding when S3
   presigning credentials are unavailable, support the landing image namespace,
   and use the API image route when no R2 media domain is configured
+- the dashboard deploy script no longer shells out to `find`, so it runs on
+  Windows as well as macOS and Linux
 
 ### Added
 
