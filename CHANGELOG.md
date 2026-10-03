@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the dashboard deploy script no longer shells out to `find`, so it runs on
   Windows as well as macOS and Linux
 
+### Changed
+
+- the dashboard resolves the cod-server origin from `PUBLIC_API_URL` alone. The
+  `app.<domain>` → `api.<domain>` runtime derivation is gone, which matches the
+  single-tenant deployment model (one deployment per store) and the way every
+  doc configures the origin — but a single build can no longer serve many stores
+  from their own subdomains
+
 ### Added
 
 - checkout-form: the storefront order form is configurable per store (migration

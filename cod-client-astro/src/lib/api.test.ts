@@ -14,12 +14,18 @@ const session = vi.hoisted(() => {
 vi.mock("@/lib/session", () => session);
 vi.mock("astro:env/client", () => ({ PUBLIC_API_URL: "https://api.test" }));
 
-import { apiFetch } from "./api";
+import { apiFetch, publicApiUrl } from "./api";
 
 describe("apiFetch", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("uses the configured API origin on a custom dashboard host", () => {
+    vi.stubGlobal("window", { location: { hostname: "app.matjar.live" } });
+
+    expect(publicApiUrl()).toBe("https://api.test");
   });
 
   it("retries a 401 with a freshly issued bearer token", async () => {

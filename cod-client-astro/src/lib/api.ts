@@ -3,24 +3,9 @@ import { PUBLIC_API_URL } from "astro:env/client";
 import { currentJwt, refreshJwt } from "@/lib/session";
 
 /**
- * Resolve the cod-server origin for browser code.
- *
- * `PUBLIC_API_URL` is baked at build time (astro:env/client), which is fine
- * for a self-hosted deployment where the dashboard and API origins are known
- * when the bundle is produced. Platform deployments can't bake it: one build
- * serves many stores, each with its own API origin. Those deployments follow
- * the `app.<store-domain>` → `api.<store-domain>` subdomain convention, so we
- * derive the origin from `window.location.hostname` at request time and only
- * fall back to the baked value when the convention doesn't apply (localhost,
- * self-hosted domains that don't start with `app.`).
+ * Resolve the cod-server origin for browser code from the deployment config.
  */
 export function publicApiUrl(): string {
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    if (hostname.startsWith("app.")) {
-      return `https://api.${hostname.slice("app.".length)}`;
-    }
-  }
   return PUBLIC_API_URL;
 }
 
