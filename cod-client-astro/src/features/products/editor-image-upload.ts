@@ -3,8 +3,8 @@ import { uploadImageFile } from "@/features/uploads/api";
 
 /**
  * Inline description images go through the dashboard's single upload seam
- * (`features/uploads`), not the template's demo uploader: presign → direct
- * PUT to R2 → return the public URL the editor stores in `img src`.
+ * (`features/uploads`), not the template's demo uploader: presign with a
+ * Worker-upload fallback → return the public URL the editor stores in `img src`.
  *
  * Rejections (wrong type, over the size cap) propagate as thrown errors, which
  * the upload node reports through its `onError` handler.

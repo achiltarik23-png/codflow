@@ -38,20 +38,22 @@ const mockBucket = {
 
 describe("Images Endpoint - Error Scenarios", () => {
   let app: Hono<AppContext>;
+  let mediaDomain: string;
 
   beforeEach(() => {
     app = new Hono<AppContext>();
-    
+    mediaDomain = "media.example.com";
+
     // Add middleware to inject mock env and user
     app.use("*", async (c, next) => {
-      c.env = { 
+      c.env = {
         DB: mockDb,
         IMAGES: mockBucket,
         CF_ACCOUNT_ID: "test-account",
         R2_ACCESS_KEY_ID: "test-key",
         R2_SECRET_ACCESS_KEY: "test-secret",
         R2_BUCKET_NAME: "test-bucket",
-        MEDIA_DOMAIN: "media.example.com",
+        MEDIA_DOMAIN: mediaDomain,
       } as any;
       c.set("user", { id: "user-123", email: "test@example.com" } as any);
       await next();
@@ -178,9 +180,28 @@ describe("Images Endpoint - Error Scenarios", () => {
         success: true,
         data: expect.objectContaining({
           key: expect.stringMatching(/^products\/[a-f0-9]+\.jpg$/),
-          url: expect.stringContaining("/images/products/"),
+          url: expect.stringContaining("https://media.example.com/products/"),
         }),
       });
+    });
+
+    it("should upload into the requested folder and use the configured media domain", async () => {
+      const formData = new FormData();
+      const file = new File(["test"], "landing.jpg", { type: "image/jpeg" });
+      formData.append("file", file);
+      formData.append("folder", "landing");
+
+      mockBucket.put.mockResolvedValue(undefined);
+
+      const res = await app.request("/api/images/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      expect(res.status).toBe(201);
+      const body: any = await res.json();
+      expect(body.data.key).toMatch(/^landing\/[a-f0-9]+\.jpg$/);
+      expect(body.data.url).toBe(`https://media.example.com/${body.data.key}`);
     });
   });
 
@@ -437,6 +458,20 @@ describe("Images Endpoint - Error Scenarios", () => {
       });
       expect(body.context).toHaveProperty("missingCredentials");
       expect(Array.isArray(body.context.missingCredentials)).toBe(true);
+    });
+
+    it("uses the API image route when MEDIA_DOMAIN is empty", async () => {
+      mediaDomain = "";
+
+      const res = await app.request("/api/images/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: "image/jpeg" }),
+      });
+
+      expect(res.status).toBe(200);
+      const body: any = await res.json();
+      expect(body.data.publicUrl).toBe(`http://localhost/images/${body.data.key}`);
     });
   });
 

@@ -12,6 +12,7 @@ import {
   partitionUploadFiles,
   presignImageUpload,
   putFileToR2,
+  uploadImageThroughApi,
   uploadImageFile,
   validateUploadFile,
 } from "./api";
@@ -141,6 +142,28 @@ describe("putFileToR2", () => {
   });
 });
 
+describe("uploadImageThroughApi", () => {
+  it("posts the file and namespace as multipart form data", async () => {
+    const file = makeFile({ type: "image/png" });
+    seam.apiFetch.mockResolvedValue({
+      success: true,
+      data: { key: "landing/abc123.png", url: "https://api.example/images/landing/abc123.png" },
+    });
+
+    await expect(uploadImageThroughApi(file, "landing")).resolves.toEqual({
+      key: "landing/abc123.png",
+      url: "https://api.example/images/landing/abc123.png",
+    });
+
+    const [path, init] = seam.apiFetch.mock.calls[0] as [string, RequestInit];
+    expect(path).toBe("/api/images/upload");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("file")).toBe(file);
+    expect((init.body as FormData).get("folder")).toBe("landing");
+  });
+});
+
 describe("uploadImageFile (presign → PUT → measure)", () => {
   it("returns key + publicUrl, measuring dimensions fail-open", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
@@ -159,6 +182,26 @@ describe("uploadImageFile (presign → PUT → measure)", () => {
     await expect(uploadImageFile(makeFile(), "products")).rejects.toBeInstanceOf(ImageUploadFailedError);
     expect(seam.apiFetch).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the Worker upload when presigning is unavailable", async () => {
+    const file = makeFile({ type: "image/png" });
+    seam.apiFetch
+      .mockRejectedValueOnce(Object.assign(new Error("presign unavailable"), { status: 500 }))
+      .mockResolvedValueOnce({
+        success: true,
+        data: { key: "products/server-upload.png", url: "https://api.example/images/products/server-upload.png" },
+      });
+    vi.stubGlobal("fetch", vi.fn());
+
+    await expect(uploadImageFile(file, "products")).resolves.toEqual({
+      key: "products/server-upload.png",
+      url: "https://api.example/images/products/server-upload.png",
+      width: null,
+      height: null,
+    });
+    expect(seam.apiFetch).toHaveBeenCalledTimes(2);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("does not presign when validation rejects", async () => {

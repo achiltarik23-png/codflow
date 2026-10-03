@@ -4,6 +4,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ValidationError, SystemError } from "@/lib/errors/classes";
 import { ERROR_CODES } from "../../../../cod-shared/errors/codes";
+import { publicImageUrl } from "./public-url";
 
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -70,16 +71,17 @@ export async function presignUpload(c: Context<AppContext>) {
   const ext = MIME_TO_EXT[contentType] ?? "jpg";
   const key = `${folder}/${crypto.randomUUID().replace(/-/g, "")}.${ext}`;
 
-  const { CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, MEDIA_DOMAIN } = c.env;
+  const { CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME } = c.env;
 
-  if (!CF_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
+  if (!CF_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME) {
     throw new SystemError(
       "R2 credentials not configured. Set CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY secrets.",
       ERROR_CODES.INTERNAL_SERVER_ERROR,
       { missingCredentials: [
         !CF_ACCOUNT_ID && "CF_ACCOUNT_ID",
         !R2_ACCESS_KEY_ID && "R2_ACCESS_KEY_ID",
-        !R2_SECRET_ACCESS_KEY && "R2_SECRET_ACCESS_KEY"
+        !R2_SECRET_ACCESS_KEY && "R2_SECRET_ACCESS_KEY",
+        !R2_BUCKET_NAME && "R2_BUCKET_NAME",
       ].filter(Boolean) }
     );
   }
@@ -105,7 +107,7 @@ export async function presignUpload(c: Context<AppContext>) {
 
   try {
     const presignedUrl = await getSignedUrl(s3, command, { expiresIn: PRESIGN_EXPIRY_SECONDS });
-    const publicUrl = `https://${MEDIA_DOMAIN}/${key}`;
+    const publicUrl = publicImageUrl(c, key);
 
     return c.json({ success: true, data: { presignedUrl, key, publicUrl } }, 200);
   } catch (error) {

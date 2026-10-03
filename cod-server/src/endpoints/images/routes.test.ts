@@ -77,7 +77,7 @@ describe("Images routes", () => {
       expect(res.status).toBe(201);
       const body: any = await res.json();
       expect(body.data.key).toMatch(/^products\/[a-f0-9]+\.jpg$/);
-      expect(body.data.url).toContain("/images/products/");
+      expect(body.data.url).toBe(`https://cdn.example.com/${body.data.key}`);
       expect(mockBucket.put).toHaveBeenCalledTimes(1);
     });
 
@@ -126,6 +126,22 @@ describe("Images routes", () => {
       expect(body.data.presignedUrl).toContain("https://signed");
       expect(body.data.key).toMatch(/^products\/[a-f0-9]+\.webp$/);
       expect(body.data.publicUrl).toBe(`https://cdn.example.com/${body.data.key}`);
+    });
+
+    it("uploads landing images into the landing namespace", async () => {
+      const form = new FormData();
+      form.append("file", makeFile("landing.jpg", "image/jpeg"));
+      form.append("folder", "landing");
+
+      const res = await app.request("/api/images/upload", {
+        method: "POST",
+        body: form,
+      });
+
+      expect(res.status).toBe(201);
+      const body: any = await res.json();
+      expect(body.data.key).toMatch(/^landing\/[a-f0-9]+\.jpg$/);
+      expect(body.data.url).toBe(`https://cdn.example.com/${body.data.key}`);
     });
 
     it("returns 400 INVALID_FILE_TYPE for unsupported content types", async () => {

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- dashboard image uploads now fall back to the Worker’s R2 binding when S3
+  presigning credentials are unavailable, support the landing image namespace,
+  and use the API image route when no R2 media domain is configured
+
 ### Added
 
 - checkout-form: the storefront order form is configurable per store (migration
