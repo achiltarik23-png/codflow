@@ -39,6 +39,11 @@ interface DataEnvelope<T> {
   data: T;
 }
 
+interface ApiUploadedImage {
+  key: string;
+  url: string;
+}
+
 function json(init: RequestInit = {}): RequestInit {
   return { ...init, headers: { ...init.headers, "Content-Type": "application/json" } };
 }
@@ -51,6 +56,13 @@ export async function presignImageUpload(contentType: string, folder: ImageUploa
       json({ method: "POST", body: JSON.stringify({ contentType, folder }) }),
     )
   ).data;
+}
+
+export async function uploadImageThroughApi(file: File, folder: ImageUploadFolder): Promise<ApiUploadedImage> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("folder", folder);
+  return (await apiFetch<DataEnvelope<ApiUploadedImage>>("/api/images/upload", { method: "POST", body: formData })).data;
 }
 
 /** Direct browser → R2 PUT against the presigned URL. */
@@ -106,11 +118,31 @@ export function measureImageDimensions(file: File): Promise<{ width: number; hei
   });
 }
 
-/** Presign → PUT → measure. One implementation for all dashboard uploads. */
+/** Presign or Worker upload → measure. One implementation for all dashboard uploads. */
 export async function uploadImageFile(file: File, folder: ImageUploadFolder): Promise<UploadedImage> {
   validateUploadFile(file);
-  const { presignedUrl, key, publicUrl } = await presignImageUpload(file.type, folder);
-  await putFileToR2(presignedUrl, file);
+  let key: string;
+  let url: string;
+  let presigned: PresignedUpload | null = null;
+  try {
+    presigned = await presignImageUpload(file.type, folder);
+  } catch (cause) {
+    const status = typeof cause === "object" && cause !== null && "status" in cause
+      ? (cause as { status?: unknown }).status
+      : undefined;
+    if (typeof status !== "number" || status < 500) throw cause;
+  }
+
+  if (presigned) {
+    await putFileToR2(presigned.presignedUrl, file);
+    key = presigned.key;
+    url = presigned.publicUrl;
+  } else {
+    const uploaded = await uploadImageThroughApi(file, folder);
+    key = uploaded.key;
+    url = uploaded.url;
+  }
+
   const dims = await measureImageDimensions(file);
-  return { key, url: publicUrl, width: dims?.width ?? null, height: dims?.height ?? null };
+  return { key, url, width: dims?.width ?? null, height: dims?.height ?? null };
 }
