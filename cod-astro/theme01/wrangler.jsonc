@@ -1,13 +1,13 @@
 {
-  "name": "codflow-os-theme01",
+  "name": "achil-codflow-theme01",
   "main": "@astrojs/cloudflare/entrypoints/server",
   "compatibility_date": "2026-04-22",
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
   "routes": [
     {
-      "pattern": "demo.codflow.store/*",
-      "zone_name": "codflow.store"
+      "pattern": "matjar.live/*",
+      "zone_name": "matjar.live"
     }
   ],
   "workers_dev": false,
