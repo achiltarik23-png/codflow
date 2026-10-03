@@ -5,6 +5,7 @@ import { productImages } from "@/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { NotFoundError, ValidationError, SystemError } from "@/lib/errors/classes";
 import { ERROR_CODES } from "../../../../cod-shared/errors/codes";
+import { publicImageUrl } from "./public-url";
 
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -15,6 +16,7 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_FOLDERS = new Set(["products", "landing"]);
 
 function extFromMime(mime: string): string {
   const map: Record<string, string> = {
@@ -70,8 +72,18 @@ export async function uploadImage(c: Context<AppContext>) {
     );
   }
 
+  const folderValue = formData.get("folder");
+  const folder = typeof folderValue === "string" && folderValue ? folderValue : "products";
+  if (!ALLOWED_FOLDERS.has(folder)) {
+    throw new ValidationError(
+      "Invalid folder. Allowed: products, landing",
+      ERROR_CODES.INVALID_FILE_TYPE,
+      { folder, allowedFolders: Array.from(ALLOWED_FOLDERS) },
+    );
+  }
+
   const ext = extFromMime(file.type);
-  const key = `products/${crypto.randomUUID().replace(/-/g, "")}.${ext}`;
+  const key = `${folder}/${crypto.randomUUID().replace(/-/g, "")}.${ext}`;
 
   const arrayBuffer = await file.arrayBuffer();
 
@@ -94,8 +106,7 @@ export async function uploadImage(c: Context<AppContext>) {
     );
   }
 
-  const origin = new URL(c.req.url).origin;
-  const url = `${origin}/images/${key}`;
+  const url = publicImageUrl(c, key);
 
   return c.json({ success: true, data: { key, url } }, 201);
 }

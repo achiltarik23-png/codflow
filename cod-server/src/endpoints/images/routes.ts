@@ -43,12 +43,16 @@ const uploadImageRoute = defineRoute({
   tags: ["Images"],
   summary: "Upload image",
   description:
-    "Upload an image file (jpg, png, webp, gif) to R2 storage. Max 10 MB. Content type must be multipart/form-data with a single `file` field.",
+    "Upload an image file (jpg, png, webp, gif) to R2 storage. Max 10 MB. Content type must be multipart/form-data with a `file` field and an optional products or landing folder.",
   operationId: "uploadImage",
   bodyContent: {
     "multipart/form-data": {
       schema: z.object({
         file: z.instanceof(File).openapi({ type: "string", format: "binary" }),
+        folder: z.enum(["products", "landing"]).optional().openapi({
+          description: "R2 key namespace. Defaults to products.",
+          example: "products",
+        }),
       }),
     },
   },

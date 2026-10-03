@@ -1,27 +1,29 @@
 # Images
 
-Product and category images are stored in Cloudflare R2. The dashboard uploads
-directly to R2 via presigned URLs (browser → R2, never through the Worker).
-The storefront serves images through the R2 custom domain with Cloudflare Image
-Resizing.
+Product, category, and landing-page images are stored in Cloudflare R2. The
+dashboard normally uploads directly to R2 via a presigned URL. If presigning is
+not configured or fails, it uploads through the Worker’s R2 binding instead.
+The storefront serves images through the R2 custom domain when configured, or
+the Worker image route as a fallback.
 
 ## How it works
 
-1. Dashboard calls `POST /api/images/presign` with a MIME type.
-2. Worker generates a signed R2 PUT URL (10-minute expiry) and returns
-   `{ presignedUrl, key, publicUrl }`.
-3. Browser PUTs the file directly to R2 using the presigned URL.
-4. Dashboard calls `POST /api/products/:id/images` with `{ key, src: publicUrl }`
+1. Dashboard calls `POST /api/images/presign` with a MIME type and namespace.
+2. If presigning is available, the Worker returns a signed R2 PUT URL
+   (10-minute expiry) and the browser PUTs the file directly to R2.
+3. If presigning is unavailable, the dashboard sends the multipart file to
+   `POST /api/images/upload`, which writes through the Worker’s R2 binding.
+4. Both paths return `{ key, url }` to the dashboard, which calls
+   `POST /api/products/:id/images` with `{ key, src: url }`
    to create the database record.
-5. Storefront reads `src` from the database and serves it through
-   `https://<MEDIA_DOMAIN>/...` — Cloudflare Image Resizing rewrites the URL to
-   `/cdn-cgi/image/<params>/<key>` automatically.
+5. Storefront reads `src` from the database and serves it through the configured
+   media domain or the Worker image route.
 
 ## Endpoints
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `POST` | `/api/images/upload` | `products:manage` | Multipart upload through the Worker (≤ 10 MB) |
+| `POST` | `/api/images/upload` | `products:manage` | Multipart upload through the Worker (≤ 10 MB); accepts `products` or `landing` folder |
 | `POST` | `/api/images/presign` | `products:manage` | Generate presigned URL for direct browser → R2 upload |
 | `GET` | `/images/:key` | none | Serve image from R2 (fallback — prefer the R2 custom domain) |
 
@@ -81,8 +83,8 @@ Add CORS policy. Paste this JSON (replace the origin with your dashboard domain)
 ]
 ```
 
-Without this, browser presigned PUT requests are blocked by CORS and image
-uploads fail silently.
+Without this, browser presigned PUT requests are blocked by CORS. The Worker
+multipart path remains available as a fallback.
 
 ## Files
 
