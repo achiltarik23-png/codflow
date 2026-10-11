@@ -31,6 +31,36 @@ const EXPOSED_RESPONSE_HEADERS = "Content-Type";
 const PREFLIGHT_MAX_AGE = "86400";
 
 /**
+ * The only paths that take part in CORS, as an allow-list.
+ *
+ * Everything else is excluded, which is the safe direction for a new route: a
+ * forgotten one simply has no cross-origin access until it is added here, and
+ * the tests below pin the exclusions.
+ *
+ *   /api/     the dashboard, and the public OpenAPI document
+ *   /store/   the storefront API
+ *   /images/  R2 media, which the storefront loads from the browser
+ *
+ * Deliberately NOT included:
+ *   /webhooks/*  carrier callbacks. They are server-to-server and send no
+ *                Origin; a browser-readable CORS surface here is pure risk.
+ *   /authorize   the MCP consent page. HTML, and OAuth needs no cross-origin
+ *                read.
+ *   /health, /   probes and the service banner. Nothing to share.
+ *
+ * /mcp and the /.well-known OAuth documents are served by the OAuthProvider,
+ * which answers before this middleware runs; they carry their own CORS policy
+ * and are out of scope here.
+ */
+const CORS_PATH_PREFIXES = ["/api/", "/store/", "/images/"] as const;
+
+function isCorsPath(path: string): boolean {
+  return CORS_PATH_PREFIXES.some(
+    (prefix) => path === prefix.slice(0, -1) || path.startsWith(prefix),
+  );
+}
+
+/**
  * Parse the configured allow-list. Entries are trimmed and stripped of a
  * trailing slash so `https://store.example.com/` matches the origin the
  * browser sends (`https://store.example.com`). A literal `*` is discarded
@@ -71,6 +101,15 @@ function resolveAllowedOrigin(
 
 export async function corsMiddleware(c: Context<AppContext>, next: Next) {
   const requestOrigin = c.req.header("origin");
+
+  // Out of scope: answer exactly as if this middleware were not installed. The
+  // route keeps its own semantics — including OPTIONS, which must not be
+  // turned into a CORS verdict by a policy that does not govern this path.
+  if (!isCorsPath(c.req.path)) {
+    await next();
+    return;
+  }
+
   const allowedOrigin = resolveAllowedOrigin(
     requestOrigin,
     parseAllowedOrigins(c.env.ALLOWED_ORIGINS),
