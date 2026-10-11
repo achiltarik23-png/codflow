@@ -86,12 +86,19 @@ MEDIA_DOMAIN = "media.example.com"
 R2_BUCKET_NAME = "codflow-images"
 BETTER_AUTH_URL = "http://localhost:4321/api/auth"
 WORKER_SELF_URL = "http://localhost:8787/"
-# Development allows all origins for easier testing. Production uses ALLOWED_ORIGINS.
-ALLOWED_ORIGINS = "*"
+# Cross-origin allow-list. The CORS middleware is fail-closed: a response only
+# carries Access-Control-Allow-Origin when the request's Origin appears here.
+# A literal "*" is ignored by design, and an empty list denies every cross-origin
+# read — list your origins, that is the only way to grant access.
+# Local dev: the dashboard and the storefront both default to :4321; run one on
+# :4322 when developing both at once.
+ALLOWED_ORIGINS = "http://localhost:4321,http://localhost:4322"
 
 # Production environment.
 # Deploy with `wrangler deploy --env production` after editing the values.
-# IMPORTANT: Set ALLOWED_ORIGINS to your actual dashboard and storefront domains.
+# IMPORTANT: set ALLOWED_ORIGINS to every origin that calls this API in a
+# browser — the dashboard, and the storefront under each domain it is served
+# from (list the `www` and apex forms separately if you have both).
 [env.production]
 vars = { ENVIRONMENT = "production", WORKER_URL = "https://api.example.com", MEDIA_DOMAIN = "media.example.com", R2_BUCKET_NAME = "codflow-images", BETTER_AUTH_URL = "https://dashboard.example.com/api/auth", WORKER_SELF_URL = "https://api.example.com/", ALLOWED_ORIGINS = "https://dashboard.example.com,https://store.example.com", STOREFRONT_URL = "https://store.example.com" }
 
