@@ -27,7 +27,7 @@ if (args.length === 0) {
   process.exit(1);
 }
 
-const { dbName } = getCloudEnv();
+const { dbName } = getCloudEnv({ require: ["COD_DB_NAME"] });
 const parts = [...args];
 const dbIndex = parts[0] === "migrations" ? 2 : 1;
 parts.splice(dbIndex, 0, dbName);

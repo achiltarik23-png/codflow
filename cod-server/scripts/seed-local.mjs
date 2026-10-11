@@ -29,7 +29,7 @@ import { getCloudEnv } from "./cloud-env.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const remote = process.argv.includes("--remote");
-const { dbName } = getCloudEnv();
+const { dbName } = getCloudEnv({ require: ["COD_DB_NAME"] });
 
 // ── 1. Resolve the store API key ────────────────────────────────────────────
 // Precedence: $STORE_API_KEY env var → cod-astro/theme01/.dev.vars → dev default.
