@@ -165,6 +165,11 @@ Signature/payload failures are rejected with \`400 INVALID_WEBHOOK_PAYLOAD\`; pr
       "SYSTEM",
       "Too many deliveries from this source — retry after the Retry-After header. The limit is per carrier per client IP per minute and fails open when the rate-limit store is unavailable"
     ),
+    503: webhookErrorResponse(
+      "SERVICE_UNAVAILABLE",
+      "SYSTEM",
+      "Signature verification is not configured for this carrier (ZR Express only; Yalidine still accepts unverified deliveries)"
+    ),
   },
   handler: handleZrWebhook,
 });
