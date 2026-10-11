@@ -11,7 +11,7 @@
  * `Echèc livraison → Retourné au centre ⇄ Retour vers centre →
  * Retour à retirer → Retourné au vendeur`.
  */
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { Miniflare } from "miniflare";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
@@ -34,9 +34,11 @@ vi.mock("@/workflows/capi-helpers", () => ({
 }));
 
 import { handleYalidineWebhook } from "./handlers";
+import { sealWebhookSecret } from "../../../../cod-shared/lib/webhook-secret";
 
 let realDb: AppDb;
 let app: Hono<AppContext>;
+let testEnv: Record<string, unknown>;
 const registry: Miniflare[] = [];
 
 beforeAll(async () => {
@@ -65,8 +67,10 @@ beforeAll(async () => {
   registry.push(mf);
 
   app = new Hono<AppContext>();
+  // Mutable so a test can supply WEBHOOK_ENCRYPTION_KEY per case.
+  testEnv = { DB: d1 };
   app.use("*", async (c, next) => {
-    c.env = { DB: d1 } as any;
+    c.env = testEnv as any;
     await next();
   });
   app.onError(errorHandler);
@@ -155,6 +159,146 @@ async function orderRow() {
     .get();
   return row!;
 }
+
+/**
+ * The full encrypted round-trip, through the real handler and real D1:
+ * seal → store as an envelope → the handler opens it → HMAC verifies.
+ *
+ * Also pins the two properties that matter operationally: the value sitting in
+ * D1 is never the plaintext, and a row written before encryption existed keeps
+ * working with no key configured.
+ */
+describe("encrypted webhook secret — end to end", () => {
+  const ENCRYPTION_KEY = "9f".repeat(32);
+  let eventSeq = 0;
+
+  beforeEach(async () => {
+    testEnv.WEBHOOK_ENCRYPTION_KEY = ENCRYPTION_KEY;
+  });
+
+  afterEach(async () => {
+    delete testEnv.WEBHOOK_ENCRYPTION_KEY;
+    // This block drives the same shared order as the suites below, and the
+    // terminal-status guard is one-way: leaving it at `delivered` would make
+    // every later assertion fail for the wrong reason.
+    await realDb
+      .update(schema.orders)
+      .set({ status: "out_for_delivery", deliveryAttempts: 0 })
+      .where(eq(schema.orders.id, "ord-map-1"));
+    await setCompanySecret(null);
+  });
+
+  it("accepts a correctly signed delivery when the secret is stored sealed", async () => {
+    const sealed = await sealWebhookSecret(WEBHOOK_SECRET, ENCRYPTION_KEY);
+    await setCompanySecret(sealed);
+
+    // What landed in D1 is an envelope, never the carrier's key.
+    const stored = await realDb
+      .select({ webhookSecret: schema.deliveryCompanies.webhookSecret })
+      .from(schema.deliveryCompanies)
+      .where(eq(schema.deliveryCompanies.id, "comp-yal"))
+      .get();
+    expect(stored?.webhookSecret?.startsWith("enc:v1:")).toBe(true);
+    expect(stored?.webhookSecret).not.toContain(WEBHOOK_SECRET);
+
+    const eventId = `evt-enc-ok-${++eventSeq}`;
+    const body = JSON.stringify({
+      type: "parcel_status_updated",
+      events: [
+        {
+          event_id: eventId,
+          occurred_at: "2026-09-07 10:00:00",
+          data: { tracking: "yal-MAP001", status: "Livré", reason: null },
+        },
+      ],
+    });
+
+    const res = await postSigned(body, WEBHOOK_SECRET, true);
+
+    expect(res.status).toBe(200);
+    expect((await orderRow()).status).toBe("delivered");
+
+    const event = await realDb
+      .select()
+      .from(schema.webhookEvents)
+      .where(eq(schema.webhookEvents.eventId, eventId))
+      .get();
+    expect(event?.result).toBe("ok");
+  });
+
+  it("rejects a forged signature against the sealed secret", async () => {
+    await setCompanySecret(await sealWebhookSecret(WEBHOOK_SECRET, ENCRYPTION_KEY));
+
+    const eventId = `evt-enc-forge-${++eventSeq}`;
+    const body = JSON.stringify({
+      type: "parcel_status_updated",
+      events: [
+        {
+          event_id: eventId,
+          occurred_at: "2026-09-07 10:00:00",
+          data: { tracking: "yal-MAP001", status: "Retourné au vendeur", reason: null },
+        },
+      ],
+    });
+
+    const res = await postSigned(body, "the-wrong-secret", true);
+
+    expect(res.status).toBe(400);
+    expect((await orderRow()).status).not.toBe("returned");
+  });
+
+  it("still reads a legacy clear-text row when no key is configured", async () => {
+    // A row written before encryption existed, and a deployment that has not
+    // set the key yet: verification must keep working, not strand the carrier.
+    delete testEnv.WEBHOOK_ENCRYPTION_KEY;
+    await setCompanySecret(WEBHOOK_SECRET);
+
+    const eventId = `evt-legacy-${++eventSeq}`;
+    const body = JSON.stringify({
+      type: "parcel_status_updated",
+      events: [
+        {
+          event_id: eventId,
+          occurred_at: "2026-09-07 10:00:00",
+          data: { tracking: "yal-MAP001", status: "Livré", reason: null },
+        },
+      ],
+    });
+
+    const res = await postSigned(body, WEBHOOK_SECRET, true);
+
+    expect(res.status).toBe(200);
+    const event = await realDb
+      .select()
+      .from(schema.webhookEvents)
+      .where(eq(schema.webhookEvents.eventId, eventId))
+      .get();
+    expect(event?.result).toBe("ok");
+  });
+
+  it("treats an unopenable sealed secret as not configured rather than 500-ing", async () => {
+    // Wrong key = operator error. The delivery falls into the existing
+    // unverified branch instead of burning the carrier's retry budget.
+    await setCompanySecret(await sealWebhookSecret(WEBHOOK_SECRET, "ab".repeat(32)));
+
+    const res = await app.request("/webhooks/yalidine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "parcel_status_updated",
+        events: [
+          {
+            event_id: `evt-enc-badkey-${++eventSeq}`,
+            occurred_at: "2026-09-07 10:00:00",
+            data: { tracking: "yal-MAP001", status: "Livré", reason: null },
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+  });
+});
 
 async function eventRow(eventId: string) {
   return realDb

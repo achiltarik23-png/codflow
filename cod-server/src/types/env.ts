@@ -62,6 +62,16 @@ export interface Env {
   /** KV namespace for the MCP OAuth provider (clients, grants, tokens, props). */
   OAUTH_KV: KVNamespace;
   /**
+   * 32-byte hex master key (64 chars) that seals carrier webhook secrets in
+   * D1 — see cod-shared/lib/webhook-secret.ts. Those secrets are HMAC keys, so
+   * hashing is impossible and the value has to stay recoverable.
+   *
+   * Loss is unrecoverable: every stored webhook secret becomes unopenable and
+   * signature verification fails. Back it up outside the project, next to
+   * BETTER_AUTH_SECRET.
+   */
+  WEBHOOK_ENCRYPTION_KEY?: string;
+  /**
    * KV namespace for rate limiting. Optional: the OTP send guards treat an
    * absent binding as "no local guard" (the provider's own limits remain the
    * hard bound) — a KV failure must never block a send.

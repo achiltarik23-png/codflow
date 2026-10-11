@@ -29,10 +29,42 @@ import { ORDER_STATUSES } from "../orders/validation";
 import type { OrderStatus } from "../../../../cod-shared/db/schema";
 import { verifySvixSignature } from "./svix-verify";
 import { verifyYalidineSignature } from "./yalidine-verify";
+import { openWebhookSecret } from "../../../../cod-shared/lib/webhook-secret";
 import { mapZrStateName, parseCustomMapping } from "./zr-status-mapper";
 import { mapYalidineStatus } from "./yalidine-status-mapper";
 import { ValidationError, ExternalApiError } from "@/lib/errors/classes";
 import { ERROR_CODES } from "../../../../cod-shared/errors/codes";
+
+/**
+ * Decrypt a stored webhook secret for HMAC verification.
+ *
+ * Values written before encryption existed are still clear text and pass
+ * through untouched — they upgrade on their next write.
+ *
+ * A stored secret that fails to open (WEBHOOK_ENCRYPTION_KEY rotated or lost)
+ * returns null, which lands the delivery in the existing "no secret configured"
+ * branch: logged at error level, events still processed. That is deliberately
+ * the existing unverified path, not a new failure mode — turning a key mistake
+ * into a hard 500 would push every carrier into its retry budget and, once
+ * fail-closed lands, unsubscribe merchants. Fix the key instead.
+ */
+async function openForVerification(
+  env: AppContext["Bindings"],
+  stored: string | null,
+  provider: string,
+): Promise<string | null> {
+  if (!stored) return null;
+  try {
+    return await openWebhookSecret(stored, env.WEBHOOK_ENCRYPTION_KEY ?? "");
+  } catch (err) {
+    console.error(
+      `[webhook][${provider}] WEBHOOK_ENCRYPTION_KEY could not open the stored secret — ` +
+        "treating it as not configured",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
+}
 
 /** Guard: carrier mappers return admin-configured strings — verify before use. */
 function isOrderStatus(value: string): value is (typeof ORDER_STATUSES)[number] {
@@ -65,13 +97,14 @@ export async function handleZrWebhook(c: Context<AppContext>) {
   }
 
   // Verify Svix signature if secret is configured
-  if (company.webhookSecret) {
+  const webhookSecret = await openForVerification(c.env, company.webhookSecret, "zr");
+  if (webhookSecret) {
     const valid = await verifySvixSignature(
       rawBody,
       c.req.header("svix-id") ?? null,
       c.req.header("svix-timestamp") ?? null,
       c.req.header("svix-signature") ?? null,
-      company.webhookSecret
+      webhookSecret
     );
     if (!valid) {
       console.warn("[webhook][zr] Signature verification failed");
@@ -305,7 +338,8 @@ export async function handleYalidineWebhook(c: Context<AppContext>) {
   // the payload as it may affect the integrity of your data"). Secret unset
   // → fail-open with one clear log line so merchants without a secret keep
   // receiving events (dashboard surfaces the unverified state — Slice Y3).
-  if (company.webhookSecret) {
+  const yalidineSecret = await openForVerification(c.env, company.webhookSecret, "yalidine");
+  if (yalidineSecret) {
     // Both header spellings accepted: HTTP convention X-Yalidine-Signature
     // and the docs' PHP-formatted X_YALIDINE_SIGNATURE.
     const signature =
@@ -313,7 +347,7 @@ export async function handleYalidineWebhook(c: Context<AppContext>) {
     const valid = await verifyYalidineSignature(
       rawBody,
       signature,
-      company.webhookSecret,
+      yalidineSecret,
     );
     if (!valid) {
       console.warn("[webhook][yalidine] Signature verification failed");
