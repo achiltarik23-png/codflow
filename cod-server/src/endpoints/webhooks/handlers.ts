@@ -30,6 +30,8 @@ import type { OrderStatus } from "../../../../cod-shared/db/schema";
 import { verifySvixSignature } from "./svix-verify";
 import { verifyYalidineSignature } from "./yalidine-verify";
 import { openWebhookSecret } from "../../../../cod-shared/lib/webhook-secret";
+import { checkYalidineReplay } from "../../../../cod-shared/lib/webhook-replay-guard";
+import { isTerminalWebhookResult } from "../../../../cod-shared/queries/webhooks";
 import { mapZrStateName, parseCustomMapping } from "./zr-status-mapper";
 import { mapYalidineStatus } from "./yalidine-status-mapper";
 import { ValidationError, ExternalApiError } from "@/lib/errors/classes";
@@ -145,7 +147,7 @@ export async function handleZrWebhook(c: Context<AppContext>) {
   const now = new Date().toISOString();
 
   // Insert event record for idempotency + audit
-  const { id: webhookEventId, isDuplicate } = await insertWebhookEvent(db, {
+  const { id: webhookEventId, isDuplicate, previousResult } = await insertWebhookEvent(db, {
     provider: "zr_express",
     eventId,
     companyId: company.id,
@@ -154,7 +156,11 @@ export async function handleZrWebhook(c: Context<AppContext>) {
     rawPayload: rawBody,
   });
 
-  if (isDuplicate) {
+  // A duplicate whose previous attempt FAILED is not a duplicate to skip — it
+  // is the carrier retrying after our own write failed. Skipping it is what
+  // leaves the parcel stuck. The Svix replay window is untouched: a re-signed
+  // retry is still subject to the signed timestamp.
+  if (isDuplicate && isTerminalWebhookResult(previousResult)) {
     // Already processed — return 200 without reprocessing
     return c.json({ received: true }, 200);
   }
@@ -339,6 +345,10 @@ export async function handleYalidineWebhook(c: Context<AppContext>) {
   // → fail-open with one clear log line so merchants without a secret keep
   // receiving events (dashboard surfaces the unverified state — Slice Y3).
   const yalidineSecret = await openForVerification(c.env, company.webhookSecret, "yalidine");
+  // Only a VERIFIED delivery carries a trustworthy occurred_at — it is inside
+  // the signed body. On the fail-open path it is whatever the caller sent, so
+  // the replay window would be measuring nothing.
+  const signatureVerified = yalidineSecret !== null;
   if (yalidineSecret) {
     // Both header spellings accepted: HTTP convention X-Yalidine-Signature
     // and the docs' PHP-formatted X_YALIDINE_SIGNATURE.
@@ -392,7 +402,7 @@ export async function handleYalidineWebhook(c: Context<AppContext>) {
     const tracking = (eventData.tracking as string | undefined) ?? null;
     const now = new Date().toISOString();
 
-    const { id: webhookEventId, isDuplicate } = await insertWebhookEvent(db, {
+    const { id: webhookEventId, isDuplicate, previousResult } = await insertWebhookEvent(db, {
       provider: "yalidine",
       eventId,
       companyId: company.id,
@@ -401,9 +411,26 @@ export async function handleYalidineWebhook(c: Context<AppContext>) {
       rawPayload: JSON.stringify({ type: eventType, event }),
     });
 
-    if (isDuplicate) continue;
+    // A duplicate whose previous attempt FAILED is not a duplicate to skip —
+    // it is the carrier retrying, and skipping it is what strands a parcel.
+    if (isDuplicate && isTerminalWebhookResult(previousResult)) continue;
 
     try {
+      // Replay window — verified deliveries only, and never a rejection: the
+      // carrier gets its 200 and the event is simply recorded without moving an
+      // order. Refusing here would push it into retry, then auto-disable.
+      if (signatureVerified) {
+        const replay = checkYalidineReplay(event.occurred_at);
+        if (replay.verdict === "stale") {
+          await updateWebhookEvent(db, webhookEventId, {
+            result: "ignored",
+            reason: `replayed: occurred_at is ${Math.round(replay.ageMs / 86_400_000)}d old`,
+            processedAt: now,
+          });
+          continue;
+        }
+      }
+
       // Non-status event types — log and ignore
       if (eventType !== "parcel_status_updated") {
         await updateWebhookEvent(db, webhookEventId, {

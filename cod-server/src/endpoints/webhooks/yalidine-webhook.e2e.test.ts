@@ -138,6 +138,20 @@ async function setCompanySecret(secret: string | null) {
     .where(eq(schema.deliveryCompanies.id, "comp-yal"));
 }
 
+/**
+ * A timestamp the replay window will accept, computed at call time.
+ *
+ * A literal like "2026-09-07" is a time bomb: the replay guard would start
+ * rejecting these deliveries the moment it aged past the window, and the suite
+ * would fail for a reason that has nothing to do with the code under test.
+ */
+function recentOccurredAt(minutesAgo = 5): string {
+  return new Date(Date.now() - minutesAgo * 60_000)
+    .toISOString()
+    .replace("T", " ")
+    .slice(0, 19);
+}
+
 /** Post a body with an explicit X-Yalidine-Signature header. */
 async function postSigned(body: string, secret: string, valid: boolean) {
   const sig = createHmac("sha256", secret).update(body, "utf8").digest("hex");
@@ -207,7 +221,7 @@ describe("encrypted webhook secret — end to end", () => {
       events: [
         {
           event_id: eventId,
-          occurred_at: "2026-09-07 10:00:00",
+          occurred_at: recentOccurredAt(),
           data: { tracking: "yal-MAP001", status: "Livré", reason: null },
         },
       ],
@@ -235,7 +249,7 @@ describe("encrypted webhook secret — end to end", () => {
       events: [
         {
           event_id: eventId,
-          occurred_at: "2026-09-07 10:00:00",
+          occurred_at: recentOccurredAt(),
           data: { tracking: "yal-MAP001", status: "Retourné au vendeur", reason: null },
         },
       ],
@@ -259,7 +273,7 @@ describe("encrypted webhook secret — end to end", () => {
       events: [
         {
           event_id: eventId,
-          occurred_at: "2026-09-07 10:00:00",
+          occurred_at: recentOccurredAt(),
           data: { tracking: "yal-MAP001", status: "Livré", reason: null },
         },
       ],
@@ -415,7 +429,7 @@ describe("handleYalidineWebhook — HMAC signature verification (real D1 + real 
     events: [
       {
         event_id: `evt-sig-${Math.random().toString(36).slice(2, 8)}`,
-        occurred_at: "2026-09-07 10:00:00",
+        occurred_at: recentOccurredAt(),
         data: { tracking: "yal-MAP001", status: "En transit", reason: null },
       },
     ],
