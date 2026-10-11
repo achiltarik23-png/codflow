@@ -51,6 +51,10 @@ The storefront's production variables (`STORE_API_KEY`, `COD_SERVER_URL`,
 repository** — there is no `vercel.json` and `.vercel/` is gitignored. Change
 them in the Vercel dashboard.
 
+Variable names, the production domain and a pre-deploy checklist live in
+`docs/VERCEL_PRODUCTION.md`. The evidence behind this section is in
+`STOREFRONT_DEPLOYMENT.md`.
+
 There is **one root `package.json` with npm workspaces** and ONE root
 `package-lock.json`. Never add per-package lockfiles. The root also carries the
 repo-wide npm `overrides`: the single-Vite pin (keeps one Vite major across

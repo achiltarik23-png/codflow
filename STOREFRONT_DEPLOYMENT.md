@@ -3,6 +3,9 @@
 **Status:** decided 2026-10-11. Nothing was deleted when this was recorded —
 see "Obsolete Cloudflare configuration" for the cleanup list.
 
+For the storefront's variables, production domain and deployment checklist,
+see [`docs/VERCEL_PRODUCTION.md`](docs/VERCEL_PRODUCTION.md).
+
 ## The rule
 
 > **The storefront is deployed via Vercel. Do not use `npm run deploy`
