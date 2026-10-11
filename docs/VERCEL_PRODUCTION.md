@@ -140,17 +140,128 @@ then confirm the deployment in the dashboard.
 Use the dashboard's deployment list to promote a previous build. There is no
 rollback script in the repository.
 
+## Rotating `STORE_API_KEY`
+
+**No key value appears in this document.** The new key is displayed exactly
+once and must be copied at that moment; there is no way to retrieve it
+afterwards.
+
+### What rotation actually does
+
+`POST /api/stores/me/api-key/rotate` on cod-server (admin session required)
+replaces every key row for the store in a single atomic batch:
+
+- a new key is generated;
+- the previous key is **deleted immediately**;
+- the raw key is returned once, with `Cache-Control: no-store`.
+
+There is no "prepare then activate" mode. Generating *is* activating.
+
+### Mandatory order
+
+The steps are not interchangeable. Do them in this order.
+
+| # | Action | Where |
+|---|---|---|
+| 1 | Trigger the rotation | Dashboard → Store settings → API key → **Rotate** |
+| 2 | Copy the key from the one-time dialog | The dialog, immediately |
+| 3 | Update `STORE_API_KEY` in the Vercel project | Vercel dashboard, Production scope |
+| 4 | Redeploy the storefront | Vercel dashboard — see below |
+| 5 | Run the validation checks | See "Validating after rotation" |
+
+**Steps 3 and 4 cannot be skipped or reordered.** Vercel injects environment
+variables into the deployed function at deploy time; a value saved in the
+dashboard does not reach a running deployment until it is redeployed. Saving
+the variable without redeploying leaves production on the old, now-dead key.
+
+### The outage window
+
+Between step 1 and the completion of step 4, the storefront holds a key that
+no longer matches the database. **Every storefront API call returns `401`.**
+
+The failure is quiet, and this matters more than the outage itself:
+
+- the storefront still returns HTTP `200`;
+- `fetchStoreConfig()` returns `null` and every other call returns `null`, `[]`
+  or `{}` — no exception is thrown and no error is surfaced;
+- pages render with empty data, so the site *looks up*;
+- **order submission is the customer-visible break** — the shopper gets an
+  order-failed message.
+
+Vercel caching (`X-Vercel-Cache`) may keep serving previously cached pages
+during the window, which delays the symptom and can make a failed rotation look
+successful. Do not take a cached page as proof the rotation worked — use the
+validation checks.
+
+Minimise the window: have the Vercel project open in a second tab before
+starting, and run it in low-traffic hours.
+
+### Step 3 — updating the variable
+
+- Edit `STORE_API_KEY` for the **Production** environment only.
+- Keep the type `Secret`.
+- Do not touch `COD_SERVER_URL`, `MEDIA_DOMAIN` or `DEPLOY_TARGET`.
+
+If you need to recover the value later, it is gone — rotate again.
+
+### Step 4 — redeploying
+
+Redeploy from the Vercel dashboard. The exact trigger of the production
+project (git push, dashboard redeploy, CLI) is **not recorded in this
+repository** — confirm it in the owning account first. Whichever it is, the
+deployment must actually be re-created; editing the variable alone does
+nothing.
+
+A successful redeploy shows a fresh deployment id on `www.matjar.live`:
+
+```sh
+curl -sI https://www.matjar.live/ | grep -i -E 'x-vercel-id|server'
+```
+
+### Validating after rotation
+
+Run all four. The first proves the key is still required, the second that the
+storefront authenticates, the third that the browser path works, and the
+fourth that no secret leaked.
+
+```sh
+# 1. the API still rejects unauthenticated calls
+curl -4 -s -o /dev/null -w "%{http_code}\n" https://api.matjar.live/store/config
+# expect: 401
+
+# 2. the storefront reads the real store configuration
+curl -4 -sL https://www.matjar.live/ | grep -o '<title>[^<]*</title>'
+# expect: the store name from D1, NOT a fallback
+
+# 3. a same-origin proxy returns JSON, not an HTML error page
+curl -4 -s "https://www.matjar.live/api/product-reviews/probe-1?offset=0&limit=3"
+# expect: {"data":[],"total":0}
+
+# 4. no key material in the served page
+curl -4 -sL https://www.matjar.live/ | grep -c 'sk_store_'
+# expect: 0
+```
+
+Check 2 is the one that matters. A storefront showing a fallback store name
+after rotation means step 4 did not produce a live deployment carrying the new
+variable.
+
+If checks 2–4 fail, redeploy again before touching anything else — an
+incomplete redeploy is the usual cause.
+
+### Rotating on the wrong side
+
+`POST /api/stores/me` returns `storeApiKeyConfigured: true|false` and never the
+key. There is no endpoint that can recover a key from the database: only a
+SHA-256 hash is stored, in `store_api_keys.key_hash`. Losing the key means
+rotating, not recovering.
+
 ## Security notes
 
 - **Keep secret values out of the repository.** `STORE_API_KEY` must never be
   committed, placed in a `vercel.json`, or pasted into an issue.
-- The value in `STORE_API_KEY` is only a *hash* of the key on the server side
-  (`store_api_keys.key_hash`, SHA-256). Rotating means generating a new key via
-  `POST /api/stores/me/api-key/rotate` on cod-server and updating the Vercel
-  variable in the same operation — a mismatch makes every storefront API call
-  return `401`.
-- Rotating a key **invalidates the previous one immediately**. Update Vercel
-  first, or the storefront breaks between the two steps.
+- cod-server stores only a SHA-256 **hash** of the key
+  (`store_api_keys.key_hash`), never the key itself.
 - `.dev.vars` in `cod-astro/theme01` is gitignored and local-only. It is read
   during a build, so never deploy a build produced from a machine whose
   `.dev.vars` points at `localhost` — the deployment will ship a storefront
