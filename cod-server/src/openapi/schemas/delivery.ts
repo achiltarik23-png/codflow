@@ -19,6 +19,12 @@ export const DeliveryCompanySchema = z
       description: "True when API credentials are stored. Credentials themselves are never returned.",
       example: true,
     }),
+    hasWebhookSecret: z.boolean().openapi({
+      description:
+        "True when a webhook signing secret is stored for this carrier. The secret is the HMAC key shared " +
+        "with the carrier and is never returned — a caller holding it could forge delivery events.",
+      example: false,
+    }),
     supportsHomeDelivery: z.boolean().openapi({ example: true }),
     supportsStopDesk: z.boolean().openapi({ example: true }),
     supportsTracking: z.boolean().openapi({ example: false }),

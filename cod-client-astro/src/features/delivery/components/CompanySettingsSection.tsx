@@ -43,7 +43,7 @@ export function CompanySettingsSection({
     providerCode === "zr_express"
       ? !!company?.webhookEndpointId
       : providerCode === "yalidine"
-        ? !!company?.webhookSecret
+        ? company?.hasWebhookSecret ?? false
         : false;
   const supportsWebhook = providerCode === "zr_express" || providerCode === "yalidine";
   const isEcotrackProvider = providerCode === "ecotrack" || providerCode.endsWith("_ecotrack");

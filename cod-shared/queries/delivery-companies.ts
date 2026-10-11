@@ -50,11 +50,22 @@ export interface UpdateDeliveryCompanyData {
 
 /**
  * Strip secret credential fields from a company record before returning it
- * in any API response. Replaces apiToken/apiUserGuid with a boolean isConnected.
+ * in any API response. Replaces apiToken/apiUserGuid with a boolean isConnected,
+ * and webhookSecret with a boolean hasWebhookSecret.
+ *
+ * webhookSecret belongs here for the same reason apiToken does, and its absence
+ * was the leak: it is the HMAC key shared with the carrier. Whoever holds it can
+ * forge a delivery event — pick a tracking number, pick a status, and a forged
+ * "delivered" is accepted as signed. No caller ever needed the value, only
+ * whether one was set, so the boolean carries the whole contract.
  */
 function sanitize(company: typeof deliveryCompanies.$inferSelect) {
-  const { apiToken, apiUserGuid, ...safe } = company;
-  return { ...safe, isConnected: !!apiToken };
+  const { apiToken, apiUserGuid, webhookSecret, ...safe } = company;
+  return {
+    ...safe,
+    isConnected: !!apiToken,
+    hasWebhookSecret: !!webhookSecret,
+  };
 }
 
 export async function getAllDeliveryCompanies(
