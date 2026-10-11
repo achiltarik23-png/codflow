@@ -35,6 +35,15 @@ export async function updateMyStore(data: UpdateStoreData) {
   return (await apiFetch<DataEnvelope<StoreConfig>>("/api/stores/me", json({ method: "PATCH", body: JSON.stringify(data) }))).data;
 }
 
+export async function rotateStoreApiKey() {
+  return (
+    await apiFetch<DataEnvelope<{ apiKey: string }>>(
+      "/api/stores/me/api-key/rotate",
+      json({ method: "POST", body: "{}" }),
+    )
+  ).data;
+}
+
 export async function getPixelConfig() {
   return (await apiFetch<DataEnvelope<PixelConfig | null>>("/api/stores/pixel-config")).data;
 }

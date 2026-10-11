@@ -51,7 +51,6 @@ function storeRow(overrides: Record<string, any> = {}) {
     freeShippingThreshold: null,
     cartShippingMode: "highest" as const,
     status: "active" as const,
-    storeApiKey: "sk_store_abc123",
     createdAt: NOW,
     updatedAt: NOW,
     // NULL = today's order form. Appended last, like the schema column itself,
@@ -117,6 +116,8 @@ describe("Stores routes (OpenAPIHono)", () => {
       expect(body.success).toBe(true);
       expect(body.data.name).toBe("My Shop");
       expect(body.data.themeId).toBe("theme01");
+      expect(body.data).not.toHaveProperty("storeApiKey");
+      expect(body.data).not.toHaveProperty("store_api_key");
     });
 
     it("returns 404 when no store exists", async () => {
@@ -129,6 +130,22 @@ describe("Stores routes (OpenAPIHono)", () => {
       expect(body).toMatchObject({
         code: "STORE_NOT_FOUND",
         category: ERROR_CATEGORIES.BUSINESS_LOGIC,
+      });
+    });
+  });
+
+  describe("POST /api/stores/me/api-key/rotate", () => {
+    it("returns the new key once and disables caching", async () => {
+      vi.mocked(queries.getStore).mockResolvedValue(storeRow());
+      vi.mocked(queries.rotateStoreApiKey).mockResolvedValue({ apiKey: "sk_store_new" });
+
+      const res = await app.request("/api/stores/me/api-key/rotate", { method: "POST" });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe("no-store");
+      expect(await res.json()).toMatchObject({
+        success: true,
+        data: { apiKey: "sk_store_new" },
       });
     });
   });

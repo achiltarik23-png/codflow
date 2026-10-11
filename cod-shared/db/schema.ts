@@ -909,8 +909,6 @@ export const stores = sqliteTable("stores", {
     .default("highest"),
 
   status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
-  /** Plaintext storefront API key — written on every provision so the merchant can view it in settings. */
-  storeApiKey: text("store_api_key"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 
