@@ -70,6 +70,9 @@ Consequences:
 Losing the key is therefore a production incident, not an inconvenience. Back
 it up with the other master secrets, outside the repository.
 
+**Backed up: yes — confirmed 2026-10-11**, outside this repository. Re-confirm
+after any rotation; this line records the last known state, not a guarantee.
+
 ### Restoring a lost key
 
 There is no in-place restore — re-creating the key does not recover anything.
