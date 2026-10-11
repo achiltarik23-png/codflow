@@ -24,8 +24,11 @@
  *     7 failed retries).
  *
  * Comparison is constant-time (branch-free length check aside) to prevent
- * timing oracles.
+ * timing oracles — the primitive lives in cod-shared/lib/timing-safe.ts and is
+ * shared with the Svix verifier, which used a plain `===` until it was lifted.
  */
+
+import { timingSafeEqual } from "../../../../cod-shared/lib/timing-safe";
 
 const HEX_LEN = 64; // sha256 hex digest
 const B64_LEN = 44; // sha256 base64 digest
@@ -53,16 +56,11 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
-/** Constant-time equality — same length requirement, no early exit. */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return diff === 0;
-}
-
+/**
+ * Verify the HMAC-SHA256 signature on a Yalidine delivery.
+ *
+ * Comparison is constant-time via the shared primitive.
+ */
 export async function verifyYalidineSignature(
   rawBody: string,
   signatureHeader: string | null,
