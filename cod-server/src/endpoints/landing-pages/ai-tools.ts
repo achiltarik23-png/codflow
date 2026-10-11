@@ -746,10 +746,18 @@ export const getLandingPageTools = (
         const data = parsed.data;
 
         if (!env?.LP_IMAGE_UPLOAD_WORKFLOW || !env.MEDIA_DOMAIN) {
+          // Two distinct causes share one guard. Naming only the workflow sent
+          // operators to provision a binding that was already there: in
+          // production LP_IMAGE_UPLOAD_WORKFLOW exists and MEDIA_DOMAIN is "",
+          // so the message blamed the wrong component. The guard itself is
+          // right — landing-page-image-upload.ts:429 builds the stored src from
+          // MEDIA_DOMAIN, which is a dead link without it.
+          const cause = !env?.LP_IMAGE_UPLOAD_WORKFLOW
+            ? "the background upload workflow is not provisioned"
+            : "MEDIA_DOMAIN is not set, so uploaded images would have no public URL";
           return {
             success: false,
-            error:
-              "Image upload is not available on this deployment — the background upload workflow is not provisioned.",
+            error: `Image upload is not available on this deployment — ${cause}.`,
           };
         }
         if (!session) {
