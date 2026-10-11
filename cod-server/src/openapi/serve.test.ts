@@ -590,7 +590,8 @@ describe("GET /api/openapi.json (merged spec)", () => {
     expect(savePixel.operationId).toBe("savePixelConfig");
 
     expect(spec.components.schemas.Store).toBeDefined();
-    expect(spec.components.schemas.Store.properties.storeApiKey).toBeDefined();
+    expect(spec.components.schemas.Store.properties.storeApiKey).toBeUndefined();
+    expect(spec.components.schemas.Store.properties.storeApiKeyConfigured).toBeDefined();
     expect(spec.components.schemas.StorePixelConfig).toBeDefined();
   });
 

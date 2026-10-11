@@ -17,8 +17,10 @@ import * as handlers from "./handlers";
 import { updateStoreSchema } from "./validation";
 import {
   StoreSchema,
+  StoreApiKeyRotationSchema,
   StorePixelConfigSchema,
   SuccessResponseSchema,
+  SuccessWithMessageSchema,
 } from "@/openapi/schemas";
 
 const jsonContent = <T extends z.ZodType>(schema: T) => ({
@@ -74,6 +76,24 @@ const updateMyStoreRoute = defineRoute({
     },
   },
   handler: handlers.updateMyStore,
+});
+
+const rotateStoreApiKeyRoute = defineRoute({
+  method: "post",
+  path: "/me/api-key/rotate",
+  auth: "admin",
+  tags: ["Store Settings"],
+  summary: "Rotate storefront API key",
+  description:
+    "Generates a new storefront API key, invalidates the previous key, and returns the raw key only once. Update the Astro Worker's STORE_API_KEY secret immediately.",
+  operationId: "rotateStoreApiKey",
+  responses: {
+    200: {
+      description: "New storefront API key",
+      content: jsonContent(SuccessWithMessageSchema(StoreApiKeyRotationSchema)),
+    },
+  },
+  handler: handlers.rotateStoreApiKey,
 });
 
 const getPixelConfigRoute = defineRoute({
@@ -341,6 +361,7 @@ const router = new OpenAPIHono<AppContext>();
 
 router.openapi(getMyStoreRoute.route, getMyStoreRoute.handler);
 router.openapi(updateMyStoreRoute.route, updateMyStoreRoute.handler);
+router.openapi(rotateStoreApiKeyRoute.route, rotateStoreApiKeyRoute.handler);
 router.openapi(getPixelConfigRoute.route, getPixelConfigRoute.handler);
 router.openapi(savePixelConfigRoute.route, savePixelConfigRoute.handler);
 router.openapi(getOtpConfigRoute.route, getOtpConfigRoute.handler);

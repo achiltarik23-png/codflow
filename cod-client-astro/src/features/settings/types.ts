@@ -29,7 +29,7 @@ export interface StoreConfig {
   /** Which rate a basket spanning several shipping profiles pays. */
   cartShippingMode: "highest" | "default_profile";
   status: StoreStatus;
-  storeApiKey: string | null;
+  storeApiKeyConfigured: boolean;
 }
 
 export type UpdateStoreData = Partial<

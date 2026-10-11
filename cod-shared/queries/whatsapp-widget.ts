@@ -8,7 +8,7 @@
  * merchant can do from the dashboard.
  *
  * There is deliberately no read function here. The storefront already selects
- * the whole `stores` row in `getStoreConfig`, and the dashboard already looks
+ * the store projection in `getStoreConfig`, and the dashboard already looks
  * the store up by `getStore` — a read helper would add a query to one of them
  * to avoid a `parse` call in the other.
  */

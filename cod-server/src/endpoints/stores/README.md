@@ -37,7 +37,8 @@ Retrieve the current store's configuration. In this single-tenant architecture, 
 - **Content:** `contentJson` (serialized storefront text strings).
 - **SEO:** `metaTitle`, `metaDescription`, `ogImage`.
 - **Settings:** `announcementBar`, `reviewsEnabled`, `status`.
-- **Storefront key:** `storeApiKey` (plaintext; visible to the merchant in settings).
+- **Storefront key:** `storeApiKeyConfigured` only. The raw key is hashed in
+  `store_api_keys` and returned once by `POST /api/stores/me/api-key/rotate`.
 
 ### PATCH /api/stores/me
 Update store configuration. Partial updates are supported; set nullable fields to `null` to clear them.
