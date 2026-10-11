@@ -33,6 +33,11 @@
 # WORKER_URL=http://localhost:8787
 # MEDIA_DOMAIN=media.example.com
 # R2_BUCKET_NAME=codflow-images
+# Cross-origin allow-list for local dev. The CORS middleware is fail-closed: an
+# origin absent from this list gets no Access-Control-Allow-Origin header, so a
+# dashboard running on an unexpected port fails with a CORS error rather than
+# silently working. The dashboard and the storefront both default to :4321.
+# ALLOWED_ORIGINS=http://localhost:4321,http://localhost:4322
 
 # ── MCP SDK v2 (used by the stateless elicitation + OAuth work) ───────────────
 # HMAC key that seals stateless MCP elicitation request state (must be >= 32
