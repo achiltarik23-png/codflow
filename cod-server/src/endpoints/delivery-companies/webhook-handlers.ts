@@ -15,11 +15,31 @@ import { deliveryCompanies } from "@/db/schema";
 import { getDeliveryCompanyRaw } from "./queries";
 import { NotFoundError, ValidationError, ExternalApiError } from "@/lib/errors/classes";
 import { ORDER_STATUSES } from "@/endpoints/orders/validation";
+import { sealWebhookSecret } from "../../../../cod-shared/lib/webhook-secret";
 
 const ZR_BASE_URL = "https://api.zrexpress.app";
 
 /** Our valid order status strings — used to validate custom mapping keys. */
 const VALID_OUR_STATUSES = new Set<string>(ORDER_STATUSES);
+
+/**
+ * Seal a carrier secret before it reaches D1.
+ *
+ * A missing WEBHOOK_ENCRYPTION_KEY is a degraded state, not a reason to lose
+ * the merchant's key: the value is stored as-is and the condition is logged at
+ * error level. Storing plaintext while believing it sealed would be worse —
+ * that is why the helper itself throws rather than degrading silently.
+ */
+async function sealForStorage(env: AppContext["Bindings"], secret: string): Promise<string> {
+  const encryptionKey = env.WEBHOOK_ENCRYPTION_KEY;
+  if (!encryptionKey) {
+    console.error(
+      "[webhook][seal] WEBHOOK_ENCRYPTION_KEY is not set — webhook secret stored in clear text",
+    );
+    return secret;
+  }
+  return sealWebhookSecret(secret, encryptionKey);
+}
 
 // ─── ZR Express — Register ────────────────────────────────────────────────────
 
@@ -141,7 +161,7 @@ export async function registerZrWebhook(c: Context<AppContext>) {
     .update(deliveryCompanies)
     .set({
       webhookEndpointId: endpointId,
-      webhookSecret: secret,
+      webhookSecret: secret ? await sealForStorage(c.env, secret) : secret,
       updatedAt: new Date().toISOString(),
     })
     .where(eq(deliveryCompanies.id, id));
@@ -236,7 +256,10 @@ export async function saveYalidineSecret(c: Context<AppContext>) {
 
   await db
     .update(deliveryCompanies)
-    .set({ webhookSecret: body.secret.trim(), updatedAt: new Date().toISOString() })
+    .set({
+      webhookSecret: await sealForStorage(c.env, body.secret.trim()),
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(deliveryCompanies.id, id));
 
   return c.json({ success: true }, 200);
