@@ -4,10 +4,9 @@
  *
  * Two claims are defended here, and both are the kind that fail silently:
  *
- *   1. The raw column never leaves the server. `getStoreConfig` spreads the
- *      whole `stores` row, so every new column is public the moment it exists
- *      unless it is removed by name — a leak nobody would notice until someone
- *      read the payload.
+ *   1. Internal columns never leave the server. `getStoreConfig` uses an
+ *      explicit storefront projection and resolves internal JSON columns before
+ *      returning the payload.
  *   2. The widget costs no extra query. That is the reason the config lives on
  *      `stores` instead of its own table, and an architectural decision nobody
  *      can measure is one the next change quietly undoes. The statement count
@@ -168,6 +167,8 @@ describe("GET /store/config — whatsapp", () => {
 describe("the raw column never leaves the server", () => {
   it("is absent from the payload, configured or not", async () => {
     expect((await config()).data).not.toHaveProperty("whatsappWidgetJson");
+    expect((await config()).data).not.toHaveProperty("storeApiKey");
+    expect((await config()).data).not.toHaveProperty("store_api_key");
 
     await store({ ...ON, agentName: "أمين" });
 
@@ -200,9 +201,8 @@ describe("the widget costs no extra query", () => {
     sqlLog = [];
     await config();
 
-    // The column name itself appears in the `stores` read (drizzle expands
-    // `select *` into explicit columns), which is exactly the point — the
-    // widget rides that row. What must never appear is a table of its own.
+    // The widget is part of the explicit stores projection. What must never
+    // appear is a table of its own.
     const readsAWidgetTable = sqlLog.some((sql) =>
       /\b(from|join)\s+"?[a-z_]*whatsapp[a-z_]*"?/i.test(sql),
     );

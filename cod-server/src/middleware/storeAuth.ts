@@ -10,14 +10,7 @@ import type { AppContext } from "@/types";
 import { getDb } from "@/db";
 import { storeApiKeys } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
-async function sha256hex(text: string): Promise<string> {
-  const data = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
+import { hashStoreApiKey } from "../../../cod-shared/lib/store-api-key";
 
 export async function storeAuthMiddleware(c: Context<AppContext>, next: Next) {
   const rawKey = c.req.header("X-Store-API-Key");
@@ -27,7 +20,7 @@ export async function storeAuthMiddleware(c: Context<AppContext>, next: Next) {
 
   try {
     const db = getDb(c.env.DB);
-    const keyHash = await sha256hex(rawKey);
+    const keyHash = await hashStoreApiKey(rawKey);
 
     const record = await db
       .select()

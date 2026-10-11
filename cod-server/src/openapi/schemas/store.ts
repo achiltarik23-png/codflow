@@ -56,9 +56,10 @@ export const StoreSchema = z
       example: "highest",
     }),
     status: z.enum(["active", "inactive"]).openapi({ example: "active" }),
-    storeApiKey: z.string().nullable().openapi({
+    storeApiKeyConfigured: z.boolean().openapi({
       description:
-        "Plaintext storefront API key — visible to the merchant in Store Settings. Not the dashboard API key.",
+        "Whether a hashed storefront API key is configured. The raw key is never returned.",
+      example: true,
     }),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
@@ -67,6 +68,12 @@ export const StoreSchema = z
     description:
       "Single-tenant store configuration: branding, theme, localization, SEO, and feature flags",
   });
+
+export const StoreApiKeyRotationSchema = z.object({
+  apiKey: z.string().min(1).openapi({
+    description: "The new raw key. Returned only in the rotation response; store it immediately.",
+  }),
+});
 
 export const StorePixelConfigSchema = z
   .object({

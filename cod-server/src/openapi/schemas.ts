@@ -140,6 +140,7 @@ export {
 
 export {
   StoreSchema,
+  StoreApiKeyRotationSchema,
   StorePixelConfigSchema,
   StoreProductImageSchema,
   StoreReviewStatsSchema,

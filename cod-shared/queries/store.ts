@@ -110,7 +110,39 @@ export interface StoreOrderData {
 }
 
 export async function getStoreConfig(db: AppDb, storeId: string) {
-  const store = await db.select().from(stores).where(eq(stores.id, storeId)).get();
+  const store = await db
+    .select({
+      id: stores.id,
+      name: stores.name,
+      domain: stores.domain,
+      logoUrl: stores.logoUrl,
+      themeId: stores.themeId,
+      primaryColor: stores.primaryColor,
+      accentColor: stores.accentColor,
+      bgColor: stores.bgColor,
+      fontFamily: stores.fontFamily,
+      fontUrl: stores.fontUrl,
+      lang: stores.lang,
+      currency: stores.currency,
+      currencySymbol: stores.currencySymbol,
+      contentJson: stores.contentJson,
+      metaTitle: stores.metaTitle,
+      metaDescription: stores.metaDescription,
+      ogImage: stores.ogImage,
+      announcementBar: stores.announcementBar,
+      reviewsEnabled: stores.reviewsEnabled,
+      cartEnabled: stores.cartEnabled,
+      freeShippingThreshold: stores.freeShippingThreshold,
+      cartShippingMode: stores.cartShippingMode,
+      status: stores.status,
+      createdAt: stores.createdAt,
+      updatedAt: stores.updatedAt,
+      checkoutFormJson: stores.checkoutFormJson,
+      whatsappWidgetJson: stores.whatsappWidgetJson,
+    })
+    .from(stores)
+    .where(eq(stores.id, storeId))
+    .get();
   if (!store) return null;
   const [tracking, otpRow, turnstileRow, pages, legalContact] = await Promise.all([
     // Which pixel this storefront loads is resolved in one place for every
@@ -135,10 +167,8 @@ export async function getStoreConfig(db: AppDb, storeId: string) {
     getFooterPages(db, storeId, store.lang as PageLocale),
     getPublicLegalContact(db, storeId),
   ]);
-  // The raw policy column never leaves the server. This function spreads the
-  // whole store row, so a column is public the moment it exists unless it is
-  // removed by name here — the storefront gets the resolved projection instead,
-  // which is also the only shape a theme should ever have to understand.
+  // The storefront projection is explicit. Internal columns are selected only
+  // to resolve their public projections below and are removed before return.
   const { checkoutFormJson, whatsappWidgetJson, ...publicStore } = store;
 
   return {

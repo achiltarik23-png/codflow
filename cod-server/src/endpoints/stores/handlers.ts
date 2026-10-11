@@ -16,6 +16,22 @@ import { createSendiliClient, SendiliError, SENDILI_ERRORS } from "../../../../c
 // pixelConfigSchema needs because the route documents itself from it.
 import { z } from "@hono/zod-openapi";
 
+async function storeResponse(
+  db: ReturnType<typeof getDb>,
+  store: NonNullable<Awaited<ReturnType<typeof queries.getStore>>>,
+) {
+  const {
+    checkoutFormJson: _checkoutFormJson,
+    whatsappWidgetJson: _whatsappWidgetJson,
+    ...safeStore
+  } = store;
+
+  return {
+    ...safeStore,
+    storeApiKeyConfigured: await queries.hasStoreApiKey(db, store.id),
+  };
+}
+
 export async function getMyStore(c: Context<AppContext>) {
   const db = getDb(c.env.DB);
   const store = await queries.getStore(db);
@@ -23,8 +39,8 @@ export async function getMyStore(c: Context<AppContext>) {
   if (!store) {
     throw new NotFoundError("Store");
   }
-  
-  return c.json({ success: true, data: store }, 200);
+
+  return c.json({ success: true, data: await storeResponse(db, store) }, 200);
 }
 
 export async function updateMyStore(c: Context<AppContext>) {
@@ -41,7 +57,26 @@ export async function updateMyStore(c: Context<AppContext>) {
   if (!updated) {
     throw new SystemError("Failed to update store");
   }
-  return c.json({ success: true, data: updated }, 200);
+  return c.json({ success: true, data: await storeResponse(db, updated) }, 200);
+}
+
+export async function rotateStoreApiKey(c: Context<AppContext>) {
+  const db = getDb(c.env.DB);
+  const store = await queries.getStore(db);
+  if (!store) {
+    throw new NotFoundError("Store");
+  }
+
+  const result = await queries.rotateStoreApiKey(db, store.id);
+  c.header("Cache-Control", "no-store");
+  return c.json(
+    {
+      success: true,
+      data: result,
+      message: "Store API key rotated successfully",
+    },
+    200,
+  );
 }
 
 /**

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const seam = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 vi.mock("@/lib/api", () => ({ apiFetch: seam.apiFetch }));
 
-import { getMyStore, getPixelConfig, getEmailConfig, saveEmailConfig, savePixelConfig, testEmailConnection, updateMyStore, getTurnstileConfig, saveTurnstileConfig } from "./api";
+import { getMyStore, getPixelConfig, getEmailConfig, saveEmailConfig, savePixelConfig, testEmailConnection, updateMyStore, rotateStoreApiKey, getTurnstileConfig, saveTurnstileConfig } from "./api";
 
 describe("settings API adapters", () => {
   beforeEach(() => {
@@ -22,6 +22,16 @@ describe("settings API adapters", () => {
     seam.apiFetch.mockResolvedValue({ success: true, data: store });
     await expect(updateMyStore({ name: "Renamed", reviewsEnabled: true })).resolves.toEqual(store);
     expect(seam.apiFetch).toHaveBeenCalledWith("/api/stores/me", expect.objectContaining({ method: "PATCH", body: JSON.stringify({ name: "Renamed", reviewsEnabled: true }) }));
+  });
+
+  it("rotates the storefront key through the one-time reveal endpoint", async () => {
+    const result = { apiKey: "sk_store_new" };
+    seam.apiFetch.mockResolvedValue({ success: true, data: result });
+    await expect(rotateStoreApiKey()).resolves.toEqual(result);
+    expect(seam.apiFetch).toHaveBeenCalledWith(
+      "/api/stores/me/api-key/rotate",
+      expect.objectContaining({ method: "POST", body: "{}" }),
+    );
   });
 
   it("reads the pixel config (null when absent) and upserts it", async () => {

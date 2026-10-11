@@ -9,7 +9,7 @@
 
 - `stores/handlers.ts`, `routes.ts` (4 routes), `queries.ts`, `validation.ts`, `README.md`
 - `cod-shared/queries/stores.ts` (complete), `cod-shared/queries/pixel-config.ts` (complete)
-- Schema: `stores` table (schema.ts:776-827) incl. storeApiKey plaintext comment; `storePixelConfig`
+- Schema: `stores` table and `storeApiKeys` table; `storePixelConfig`
 - Enforcement sweep: repo-wide grep for consumers of `stores.status`
 
 ---
@@ -22,7 +22,7 @@
 |------|---------------|--------|
 | Store | getStore returns the single row, no id param (shared queries:7-10); no list/create/delete endpoints exist | ✅ |
 | Single Tenancy | "Single-tenant: the store is resolved from the D1 database" (routes.ts:5-6) | ✅ |
-| Store API Key | schema.ts:822-823 "Plaintext storefront API key — written on every provision so the merchant can view it in settings"; distinct hashed table `storeApiKeys` documented as digest-only (schema.ts:829+) | ✅ |
+| Store API Key | `storeApiKeys` stores only a SHA-256 digest; the raw key is returned only once by the rotation endpoint | ✅ |
 
 ### Configuration
 
@@ -56,7 +56,7 @@
 ## 🔧 TRUTH FIXES APPLIED WHILE VERIFYING
 
 **None required.** This is the first folder whose README passed the audit unchanged — every
-claim (including subtle ones like plaintext storeApiKey visibility and pixel-config defaults)
+claim (including secret projections and pixel-config defaults)
 matched implementation exactly.
 
 ---
@@ -64,7 +64,7 @@ matched implementation exactly.
 ## ❌ REMAINING SHARP EDGES (behavior, deliberately documented)
 
 1. **Store status flag has no consumer**: active/inactive writes succeed but nothing reads them. If someone expects an off-switch, that is a missing feature, not a docs bug.
-2. **Plaintext storefront key by design**: visible in settings responses for merchant convenience; the hashed `storeApiKeys` table exists precisely because this one is not.
+2. **Storefront key lifecycle**: the raw key is held by the Astro Worker secret and is never returned by store settings; rotation reveals it once so the Worker secret can be updated.
 3. **contentJson is opaque**: stored/returned as a raw string with no server-side schema validation — malformed JSON surfaces only when the theme renders it.
 
 ---

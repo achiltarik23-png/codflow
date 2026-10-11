@@ -2,6 +2,8 @@ import { eq } from "drizzle-orm";
 import { stores } from "../db/schema";
 import type { AppDb } from "../db/client";
 
+export { hasStoreApiKey, rotateStoreApiKey } from "./store-api-keys";
+
 type StoreUpdate = Partial<typeof stores.$inferInsert>;
 
 /** Single-tenant: returns the one store in this D1 database. */
