@@ -1111,6 +1111,18 @@ export const webhookEvents = sqliteTable("webhook_events", {
   result: text("result").notNull().default("pending"),
   /** the status we set on the order (when result='ok') */
   newStatus: text("new_status"),
+  /**
+   * Was this delivery authenticated by a signature check?
+   *
+   * Three-valued on purpose: `1` verified, `0` received and processed WITHOUT
+   * verification, `NULL` not measured. Yalidine stays NULL until its own
+   * fail-closed work lands, so NULL says nothing about it — decision queries
+   * must filter `signature_verified = 0`, never `IS NOT NULL`.
+   *
+   * The platform's observability is disabled, so this column is the only
+   * durable record that a delivery was signed.
+   */
+  signatureVerified: integer("signature_verified", { mode: "boolean" }),
   /** Yalidine reason field / ZR situation name */
   reason: text("reason"),
   errorMsg: text("error_msg"),

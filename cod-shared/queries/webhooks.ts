@@ -16,6 +16,12 @@ export interface InsertWebhookEventData {
   tracking?: string | null;
   eventType: string;
   rawPayload: string;
+  /**
+   * true = signature verified, false = accepted unverified, null = not
+   * measured. Left null for carriers whose fail-closed work has not landed, so
+   * a missing value never reads as a failure.
+   */
+  signatureVerified?: boolean | null;
 }
 
 export interface UpdateWebhookEventData {
@@ -87,6 +93,7 @@ export async function insertWebhookEvent(
       eventType: data.eventType,
       rawPayload: data.rawPayload,
       result: "pending",
+      signatureVerified: data.signatureVerified ?? null,
       createdAt: now,
     });
     return { id, isDuplicate: false };

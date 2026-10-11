@@ -73,6 +73,16 @@ function isOrderStatus(value: string): value is (typeof ORDER_STATUSES)[number] 
   return (ORDER_STATUSES as readonly string[]).includes(value);
 }
 
+/**
+ * ZR Express fail-closed switch — OFF.
+ *
+ * Flipping this to true rejects deliveries that arrive with no configured
+ * signing secret instead of accepting them unverified. The mechanism is in
+ * place and tested; the decision to flip needs evidence, not readiness:
+ * webhook_events must show signed ZR traffic for a full week first.
+ */
+const ZR_FAIL_CLOSED = false;
+
 /** Terminal order statuses — late carrier events never modify these orders. */
 const TERMINAL_ORDER_STATUSES = new Set<OrderStatus>(["delivered", "returned", "cancelled"]);
 import { shouldTriggerCapiPurchase, getCapiWorkflowId } from "@/workflows/capi-helpers";
@@ -118,6 +128,31 @@ export async function handleZrWebhook(c: Context<AppContext>) {
     }
   } else {
     console.warn("[webhook][zr] webhookSecret not set — skipping signature verification");
+    // ZR Express is the carrier ready for fail-closed: registration always
+    // fetches the signing secret, so a missing one means a broken setup rather
+    // than a merchant mid-onboarding. Rejecting the delivery is correct — but
+    // not until webhook_events shows real signed traffic first, otherwise the
+    // first mistake silently unsubscribes a merchant.
+    //
+    //   SELECT provider, signature_verified, COUNT(*)
+    //     FROM webhook_events
+    //    WHERE created_at > datetime('now', '-7 days')
+    //    GROUP BY provider, signature_verified;
+    //
+    // Switch to true only when that reports no 0 for zr_express over a full
+    // week. 503, not 400: the carrier must be able to tell "your setup is
+    // broken" from "your event was rejected", and 503 is what triggers a retry.
+    if (ZR_FAIL_CLOSED) {
+      return c.json(
+        {
+          error: "ZR Express webhook signature verification is not configured",
+          code: ERROR_CODES.SERVICE_UNAVAILABLE,
+          category: "SYSTEM",
+          context: { provider: "zr_express", companyId: company.id },
+        },
+        503,
+      );
+    }
   }
 
   // Parse the payload
@@ -154,6 +189,9 @@ export async function handleZrWebhook(c: Context<AppContext>) {
     tracking: trackingNumber,
     eventType,
     rawPayload: rawBody,
+    // Measured for every ZR delivery: 1 when the Svix signature passed, 0 on
+    // the unverified path. This is the record the fail-closed decision reads.
+    signatureVerified: webhookSecret !== null,
   });
 
   // A duplicate whose previous attempt FAILED is not a duplicate to skip — it

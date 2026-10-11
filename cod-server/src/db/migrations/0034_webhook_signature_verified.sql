@@ -1,0 +1,20 @@
+-- Record whether an inbound delivery was signature-verified, so the
+-- fail-closed decision can be made on evidence instead of assumption.
+--
+-- Observability is disabled on this Worker, so the "webhookSecret not set —
+-- skipping signature verification" warning goes nowhere queryable. This column
+-- is the only durable record of whether a delivery was authenticated.
+--
+-- Semantics are deliberately three-valued, and the distinction matters:
+--   1  — the delivery carried a valid signature and was authenticated
+--   0  — it was received and processed WITHOUT verification (fail-open path)
+--   NULL — not measured
+--
+-- NULL is not "unverified". Yalidine is left NULL until its own fail-closed
+-- work lands, so a NULL row says nothing about Yalidine either way. Any
+-- decision query must therefore filter on `signature_verified = 0`, never on
+-- `IS NOT NULL`, or it will read the untouched Yalidine rows as failures.
+--
+-- Additive and nullable: existing rows stay NULL, no backfill, nothing is
+-- rewritten. Mirrors the pattern of 0032_whatsapp_widget.sql.
+ALTER TABLE `webhook_events` ADD COLUMN `signature_verified` integer;
