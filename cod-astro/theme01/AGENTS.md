@@ -46,9 +46,12 @@ domain, so a Cloudflare route on it never fires. The deploy succeeds and
 production is unchanged — a silent no-op, which is worse than a failure.
 
 Production storefront variables (`STORE_API_KEY`, `COD_SERVER_URL`,
-`MEDIA_DOMAIN`) live in the Vercel project environment. There is no
-`vercel.json` in this repo and `.vercel/` is gitignored, so the deploy is
-driven entirely by the Vercel Git integration.
+`MEDIA_DOMAIN`) live in the Vercel project environment of the account owning
+`matjar.live`. There is no `vercel.json` in this repo and `.vercel/` is
+gitignored, so that configuration is only auditable from the Vercel dashboard.
+The exact Vercel project, its build command and its deploy trigger are not
+recorded anywhere in this repository — check them there before assuming a push
+ships.
 
 Both build targets remain available: `astro.config.mjs` selects the adapter
 from `DEPLOY_TARGET` (`@astrojs/vercel` + `cacheVercel()`, or

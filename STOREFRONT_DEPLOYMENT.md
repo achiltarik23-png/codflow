@@ -10,11 +10,15 @@ see "Obsolete Cloudflare configuration" for the cleanup list.
 
 The API and the dashboard stay on Cloudflare. Only the storefront moved.
 
+> The storefront of production is served by Vercel via the account that owns
+> the `matjar.live` domain. The exact Vercel project must be verified from that
+> account.
+
 | Tier | Platform | Serves | Deployed by |
 |---|---|---|---|
 | API | Cloudflare Workers | `api.matjar.live` | `cod-server npm run deploy` |
 | Dashboard | Cloudflare Workers | `app.matjar.live` | `cod-client-astro npm run deploy` |
-| **Storefront** | **Vercel** | `matjar.live`, `www.matjar.live` | Vercel Git integration |
+| **Storefront** | **Vercel** | `matjar.live`, `www.matjar.live` | Vercel, from the domain owner's account |
 
 ## Evidence
 
@@ -84,10 +88,11 @@ than merely deprecated.
 
 ## Storefront variables
 
-Production values live in the **Vercel project environment**, not in this
-repository. There is no `vercel.json`, and `.vercel/` is gitignored
-(`cod-astro/theme01/.gitignore:8`) — the deploy is driven entirely by the
-Vercel Git integration.
+Production values live in the **Vercel project environment** of the account
+owning `matjar.live`, not in this repository. There is no `vercel.json` tracked
+here, and `.vercel/` is gitignored (`cod-astro/theme01/.gitignore:8`), so the
+storefront's production configuration is only auditable from the Vercel
+dashboard.
 
 | Variable | Where it must be set |
 |---|---|
@@ -100,6 +105,31 @@ All three are declared `context: "server", access: "secret"` in
 bindings. Verified: building with a populated `.dev.vars` does **not** bake
 those values into `dist/` — the only `localhost` string in the server bundle is
 the source fallback `?? "http://localhost:8787"` in `src/core/api/client.ts`.
+
+### What is verified, and what is not
+
+Confirmed by measurement on 2026-10-11:
+
+- `matjar.live` and `www.matjar.live` are served by **Vercel** (headers + DNS).
+- The storefront successfully reads the D1 store configuration, so the
+  `STORE_API_KEY` held on that Vercel project **matches the hashed key in the
+  database**. Frontend and backend are aligned.
+- `STORE_API_KEY`, `COD_SERVER_URL` and `DEPLOY_TARGET` exist as **Secrets**,
+  scoped to Production only. Values are never readable from outside the
+  dashboard.
+
+**Not verified — and not to be assumed:**
+
+- **The name of the Vercel project serving the domain.** A Vercel account
+  reachable from a developer machine holds `codflow-juldase-storefront`,
+  `theme01` and `codflow-os-storefront`, serves `0` domains, and renders three
+  *different* stores — none of them `matjar.live`. The project that actually
+  serves production therefore lives in a different Vercel account.
+- **The deployment mechanism** (Git integration, CLI, dashboard). Do not
+  assume one; check the project settings.
+- **The values** of the variables above.
+
+Anyone auditing this must start from the account that owns `matjar.live`.
 
 ## Obsolete Cloudflare configuration
 
@@ -136,8 +166,10 @@ paths building; only Vercel is the storefront.
 cd cod-astro/theme01
 npx astro check          # 0 errors expected
 npm test                 # 29 files
-npm run build:vercel     # the build Vercel actually deploys
+npm run build:vercel     # build the Vercel adapter locally
 ```
 
-A green `npm run build` alone does not mean the change reached production —
-confirm the Vercel deployment afterwards.
+A green `npm run build` alone does not mean the change reached production. The
+build command and the deploy trigger of the production Vercel project are not
+verified from this repository — confirm them in the dashboard of the account
+owning `matjar.live` before assuming a push ships.

@@ -30,7 +30,7 @@ a change that builds, deploys cleanly, and never reaches production.
 |---|---|---|---|
 | API | Cloudflare Workers | `api.matjar.live` | `cod-server npm run deploy` |
 | Dashboard | Cloudflare Workers | `app.matjar.live` | `cod-client-astro npm run deploy` |
-| **Storefront** | **Vercel** | `matjar.live`, `www.matjar.live` | **Vercel Git integration** |
+| **Storefront** | **Vercel** | `matjar.live`, `www.matjar.live` | **Vercel, from the account owning `matjar.live`** |
 
 > **The storefront is deployed via Vercel. Do not use `npm run deploy`
 > Cloudflare for the frontend.**
