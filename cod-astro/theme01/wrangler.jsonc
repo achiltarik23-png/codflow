@@ -1,9 +1,21 @@
+// NOT the production storefront target.
+//
+// The storefront is deployed on Vercel, which serves matjar.live and
+// www.matjar.live. This config points at the Cloudflare Worker
+// "achil-codflow-theme01", which receives no traffic: a Worker route only
+// fires when the zone lives in the same Cloudflare account with DNS proxied
+// through Cloudflare, and matjar.live is a Vercel domain.
+//
+// `npm run deploy` uses this file. It succeeds and changes nothing in
+// production — a silent no-op. Use `npm run build:vercel` for the build Vercel
+// actually deploys. See /STOREFRONT_DEPLOYMENT.md.
 {
   "name": "achil-codflow-theme01",
   "main": "@astrojs/cloudflare/entrypoints/server",
   "compatibility_date": "2026-04-22",
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
+  // Never fires — see the header above.
   "routes": [
     {
       "pattern": "matjar.live/*",

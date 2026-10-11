@@ -1,7 +1,9 @@
 # CodFlow — repository instructions for coding agents
 
 CodFlow is a cash-on-delivery (COD) e-commerce platform for Algeria. Monorepo,
-TypeScript, deployed on Cloudflare (Workers, D1, R2, KV).
+TypeScript. The API and the dashboard are deployed on Cloudflare (Workers, D1,
+R2, KV); the storefront is deployed on **Vercel**. The two platforms are not
+interchangeable — read "Deployment topology" before deploying anything.
 
 ## Layout
 
@@ -18,6 +20,36 @@ TypeScript, deployed on Cloudflare (Workers, D1, R2, KV).
 - `cod-astro/theme01/` — storefront theme (Astro). It is a swappable theme
   layer, not a platform package; keep engine logic out. Its commands and
   boundaries differ — read `cod-astro/theme01/AGENTS.md` before editing it.
+
+## Deployment topology
+
+CodFlow runs on two platforms. Picking the wrong one is the easiest way to ship
+a change that builds, deploys cleanly, and never reaches production.
+
+| Tier | Platform | Serves | Deployed by |
+|---|---|---|---|
+| API | Cloudflare Workers | `api.matjar.live` | `cod-server npm run deploy` |
+| Dashboard | Cloudflare Workers | `app.matjar.live` | `cod-client-astro npm run deploy` |
+| **Storefront** | **Vercel** | `matjar.live`, `www.matjar.live` | **Vercel Git integration** |
+
+> **The storefront is deployed via Vercel. Do not use `npm run deploy`
+> Cloudflare for the frontend.**
+
+`cod-astro/theme01` builds for either target — `npm run build:vercel` and
+`npm run build:cf` — but only the Vercel build is deployed. The Cloudflare path
+(`npm run deploy` → `scripts/deploy.mjs`) targets the Worker
+`achil-codflow-theme01`, which receives no traffic: `matjar.live` is a Vercel
+domain, so a Cloudflare route on it never fires. A deploy there succeeds and
+changes nothing in production.
+
+Verified 2026-10-11: `www.matjar.live` answers with `Server: Vercel` and an
+`X-Vercel-Id` header, and its DNS is a CNAME to `vercel-dns-017.com`.
+`matjar.live` is on Vercel too. Only `api.matjar.live` resolves to Cloudflare.
+
+The storefront's production variables (`STORE_API_KEY`, `COD_SERVER_URL`,
+`MEDIA_DOMAIN`) live in the Vercel project's environment, **not in this
+repository** — there is no `vercel.json` and `.vercel/` is gitignored. Change
+them in the Vercel dashboard.
 
 There is **one root `package.json` with npm workspaces** and ONE root
 `package-lock.json`. Never add per-package lockfiles. The root also carries the
@@ -85,6 +117,9 @@ other is how these drift.
 - Ask before adding a production dependency or changing the D1 schema.
 - Keep engine logic out of `cod-astro/theme01`; the theme layer is meant to be
   swappable (see `cod-astro/theme01/AGENTS.md`).
+- **The storefront is deployed via Vercel. Do not use `npm run deploy`
+  Cloudflare for the frontend.** That path targets `achil-codflow-theme01`,
+  which serves no traffic — see "Deployment topology".
 - Dashboard data access goes through the API seam (`cod-client-astro/src/lib/api.ts`).
   Components never call `fetch` directly, and the dashboard does not query D1
   for business data — authorization lives in cod-server.
@@ -99,10 +134,12 @@ other is how these drift.
   removing it reintroduces the dual-Vite boot crash
   (`Missing field 'moduleType'`). Keep it in sync when astro bumps Vite.
 - `COD_SERVER_URL` defaults to `http://localhost:8787` so local dev works
-  untouched. A deployed Worker can never reach that, so
+  untouched. A deployed target can never reach that address, so
   `cod-astro/theme01/scripts/deploy.mjs` refuses to deploy a loopback value
-  unless `--force-local` is passed. Set the real origin in the root `.env`
-  before deploying the storefront.
+  unless `--force-local` is passed. The root `.env` feeds the Cloudflare path;
+  the production storefront reads `COD_SERVER_URL` from the **Vercel**
+  environment instead. Set it in both, or in the wrong one and the change ships
+  to a target that serves nothing.
 - Local D1 state is **shared** through `<repo-root>/.wrangler-shared`:
   cod-server's dev/migrate scripts write there via `--persist-to`, and
   cod-client-astro's astro dev reads the same files via the Cloudflare

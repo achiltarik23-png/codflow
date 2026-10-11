@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the CORS middleware no longer fails open. Previously a missing, empty,
+  wildcard or whitespace-only `ALLOWED_ORIGINS` — or an `ENVIRONMENT` that was
+  not exactly `"production"` — fell back to echoing the request's `Origin` back
+  with `Access-Control-Allow-Credentials: true`, letting any website read the
+  API. The allow-list is now the single source of truth, unlisted origins get no
+  header at all, `Vary: Origin` is declared, and CORS is limited to `/api/`,
+  `/store/` and `/images/`
+- the storefront API key is no longer stored or served in plaintext.
+  `getStoreConfig()` selects an explicit storefront projection instead of the
+  whole `stores` row, `/api/stores/me` returns `storeApiKeyConfigured` instead
+  of the raw key, and a new one-time-reveal admin rotation
+  (`POST /api/stores/me/api-key/rotate`) replaces permanent key retrieval
 - dashboard image uploads now fall back to the Worker’s R2 binding when S3
   presigning credentials are unavailable, support the landing image namespace,
   and use the API image route when no R2 media domain is configured
@@ -17,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- the storefront is deployed on **Vercel**, which serves `matjar.live` and
+  `www.matjar.live`. The Cloudflare path (`npm run deploy` →
+  `achil-codflow-theme01`) targets a Worker that receives no traffic: the deploy
+  succeeds and changes nothing in production. Both build targets remain
+  supported, but only Vercel is the storefront — see `STOREFRONT_DEPLOYMENT.md`
 - the dashboard resolves the cod-server origin from `PUBLIC_API_URL` alone. The
   `app.<domain>` → `api.<domain>` runtime derivation is gone, which matches the
   single-tenant deployment model (one deployment per store) and the way every

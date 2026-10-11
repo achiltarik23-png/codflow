@@ -1,9 +1,11 @@
 # theme01 — repository instructions for coding agents
 
 `cod-astro/theme01` is the swappable storefront theme for CodFlow (Astro,
-Cloudflare Workers, AR/FR/EN). It is a **theme layer, not a platform package**:
-engine logic lives in the CodFlow platform (see `cod-server`). Read the root
-`AGENTS.md` too — this file only overrides what differs here.
+AR/FR/EN). It is a **theme layer, not a platform package**: engine logic lives
+in the CodFlow platform (see `cod-server`). Read the root `AGENTS.md` too —
+this file only overrides what differs here.
+
+**It is deployed on Vercel, not on Cloudflare.** See "Deployment" below.
 
 ## Layout
 
@@ -22,6 +24,8 @@ This package is part of the root npm workspace. Install at the repo root
 ```sh
 npm run dev         # astro dev :4321 (expects cod-server on :8787)
 npm run build       # astro build
+npm run build:vercel # DEPLOY_TARGET=vercel — the build Vercel actually deploys
+npm run build:cf    # DEPLOY_TARGET=cloudflare — build only, never deployed
 npm test            # vitest --run (unit/property tests)
 npx astro check     # typecheck + diagnostics
 npm run validate    # string + style validators, then build
@@ -30,6 +34,26 @@ npm run validate    # string + style validators, then build
 There is no `typecheck` script; `npx astro check` is the typecheck for this
 package. CI runs `astro check` + `npm test` for theme01 (plus typecheck +
 tests for cod-server, cod-client-astro, and the legacy cod-client).
+
+## Deployment
+
+**The storefront is deployed via Vercel. Do not use `npm run deploy`
+Cloudflare for the frontend.**
+
+`npm run deploy` (`scripts/deploy.mjs`) pushes to the Cloudflare Worker
+`achil-codflow-theme01`, which serves no traffic: `matjar.live` is a Vercel
+domain, so a Cloudflare route on it never fires. The deploy succeeds and
+production is unchanged — a silent no-op, which is worse than a failure.
+
+Production storefront variables (`STORE_API_KEY`, `COD_SERVER_URL`,
+`MEDIA_DOMAIN`) live in the Vercel project environment. There is no
+`vercel.json` in this repo and `.vercel/` is gitignored, so the deploy is
+driven entirely by the Vercel Git integration.
+
+Both build targets remain available: `astro.config.mjs` selects the adapter
+from `DEPLOY_TARGET` (`@astrojs/vercel` + `cacheVercel()`, or
+`@astrojs/cloudflare` + `cacheCloudflare()`). Keep both paths building — the
+theme is meant to be deployable to either — but only Vercel is the storefront.
 
 ## Boundaries
 
@@ -51,11 +75,13 @@ tests for cod-server, cod-client-astro, and the legacy cod-client).
   load-bearing: it keeps a single Vite major across astro/vitest/plugins.
   Removing it reintroduces a dev-server boot crash; bump it together with
   astro's Vite major. `npm ls vite` must show one version.
-- `COD_SERVER_URL` is never set in `wrangler.jsonc` — `npm run deploy`
-  (scripts/deploy.mjs) injects it at deploy time from the repo-root `.env`
-  and refuses a localhost value without `--force-local`. Local dev reads it
-  from this package's `.dev.vars`. Real secrets go in `.dev.vars` (gitignored)
-  or `wrangler secret put` — never in `wrangler.jsonc`.
+- `COD_SERVER_URL` is never set in `wrangler.jsonc`. Local dev reads it from
+  this package's `.dev.vars` (gitignored). Production reads it from the
+  **Vercel** environment; `scripts/deploy.mjs` only injects it into the
+  Cloudflare target, which is not the storefront. Real secrets go in
+  `.dev.vars` or the target's secret store — never in `wrangler.jsonc`.
+- `wrangler.jsonc` and `npm run deploy` are retained for the Cloudflare build
+  path only. Do not treat either as the storefront's deployment.
 - `MEDIA_DOMAIN` is optional; unset, the image optimizer passes URLs through
   unchanged.
 - **astro-icon uses an explicit allowlist** (`icon({ include: { heroicons: […] } })`
