@@ -23,7 +23,7 @@ function buildApp(env: Record<string, unknown>) {
     await next();
   });
   app.use("*", corsMiddleware);
-  app.get("/test", (c) => c.json({ ok: true }));
+  app.get("/api/test", (c) => c.json({ ok: true }));
   return app;
 }
 
@@ -41,7 +41,7 @@ describe("CORS Middleware", () => {
 
   describe("listed origins", () => {
     it("echoes a whitelisted origin with credentials", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         headers: { origin: "https://app.example.com" },
       });
 
@@ -52,7 +52,7 @@ describe("CORS Middleware", () => {
     });
 
     it("accepts every entry of a multi-origin list", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         headers: { origin: "https://store.example.com" },
       });
 
@@ -62,7 +62,7 @@ describe("CORS Middleware", () => {
     it("matches a configured origin written with a trailing slash", async () => {
       const withSlash = buildApp({ ...PRODUCTION, ALLOWED_ORIGINS: "https://app.example.com/" });
 
-      const res = await withSlash.request("/test", {
+      const res = await withSlash.request("/api/test", {
         headers: { origin: "https://app.example.com" },
       });
 
@@ -70,7 +70,7 @@ describe("CORS Middleware", () => {
     });
 
     it("keeps Authorization and the API key headers allowed for preflight", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         method: "OPTIONS",
         headers: {
           origin: "https://app.example.com",
@@ -87,7 +87,7 @@ describe("CORS Middleware", () => {
 
   describe("unlisted origins get no CORS headers", () => {
     it("sends nothing to an unknown origin — never the first listed one", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         headers: { origin: "https://evil.com" },
       });
 
@@ -97,7 +97,7 @@ describe("CORS Middleware", () => {
     });
 
     it("sends nothing to the literal null origin", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         headers: { origin: "null" },
       });
 
@@ -105,14 +105,14 @@ describe("CORS Middleware", () => {
     });
 
     it("sends nothing when the request carries no Origin header", async () => {
-      const res = await app.request("/test");
+      const res = await app.request("/api/test");
 
       expect(res.status).toBe(200);
       expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
     });
 
     it("does not let a prefix of a listed origin through", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         headers: { origin: "https://app.example.com.evil.com" },
       });
 
@@ -124,7 +124,7 @@ describe("CORS Middleware", () => {
     it("denies when production has no ALLOWED_ORIGINS", async () => {
       const unset = buildApp({ ENVIRONMENT: "production" });
 
-      const res = await unset.request("/test", {
+      const res = await unset.request("/api/test", {
         headers: { origin: "https://app.example.com" },
       });
 
@@ -134,7 +134,7 @@ describe("CORS Middleware", () => {
     it("denies when ALLOWED_ORIGINS is a literal wildcard", async () => {
       const wildcard = buildApp({ ENVIRONMENT: "production", ALLOWED_ORIGINS: "*" });
 
-      const res = await wildcard.request("/test", {
+      const res = await wildcard.request("/api/test", {
         headers: { origin: "https://evil.com" },
       });
 
@@ -145,7 +145,7 @@ describe("CORS Middleware", () => {
     it("denies when ALLOWED_ORIGINS holds only separators and spaces", async () => {
       const blank = buildApp({ ENVIRONMENT: "production", ALLOWED_ORIGINS: " , " });
 
-      const res = await blank.request("/test", {
+      const res = await blank.request("/api/test", {
         headers: { origin: "https://app.example.com" },
       });
 
@@ -160,12 +160,12 @@ describe("CORS Middleware", () => {
         ALLOWED_ORIGINS: "https://app.example.com",
       });
 
-      const allowed = await typo.request("/test", {
+      const allowed = await typo.request("/api/test", {
         headers: { origin: "https://app.example.com" },
       });
       expect(allowed.headers.get("Access-Control-Allow-Origin")).toBe("https://app.example.com");
 
-      const denied = await typo.request("/test", {
+      const denied = await typo.request("/api/test", {
         headers: { origin: "https://evil.com" },
       });
       expect(denied.headers.get("Access-Control-Allow-Origin")).toBeNull();
@@ -177,12 +177,12 @@ describe("CORS Middleware", () => {
         ALLOWED_ORIGINS: "http://localhost:4321",
       });
 
-      const allowed = await dev.request("/test", {
+      const allowed = await dev.request("/api/test", {
         headers: { origin: "http://localhost:4321" },
       });
       expect(allowed.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:4321");
 
-      const denied = await dev.request("/test", {
+      const denied = await dev.request("/api/test", {
         headers: { origin: "http://localhost:9999" },
       });
       expect(denied.headers.get("Access-Control-Allow-Origin")).toBeNull();
@@ -191,7 +191,7 @@ describe("CORS Middleware", () => {
 
   describe("preflight", () => {
     it("refuses an unauthorised origin with 403 and no CORS headers", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         method: "OPTIONS",
         headers: {
           origin: "https://evil.com",
@@ -204,7 +204,7 @@ describe("CORS Middleware", () => {
     });
 
     it("refuses a preflight that carries no Origin header", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         method: "OPTIONS",
         headers: { "Access-Control-Request-Method": "POST" },
       });
@@ -216,7 +216,7 @@ describe("CORS Middleware", () => {
 
   describe("response hygiene", () => {
     it("never exposes API key headers to the browser", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         headers: { origin: "https://app.example.com" },
       });
 
@@ -226,7 +226,7 @@ describe("CORS Middleware", () => {
     });
 
     it("does not duplicate the allow-origin header", async () => {
-      const res = await app.request("/test", {
+      const res = await app.request("/api/test", {
         headers: { origin: "https://app.example.com" },
       });
 
@@ -234,6 +234,87 @@ describe("CORS Middleware", () => {
         (k) => k === "access-control-allow-origin",
       );
       expect(occurrences).toHaveLength(1);
+    });
+  });
+
+  describe("scope", () => {
+    function scopedApp() {
+      const scoped = buildApp(PRODUCTION);
+      scoped.get("/api/stores/me", (c) => c.json({ ok: true }));
+      scoped.get("/store/config", (c) => c.json({ ok: true }));
+      scoped.get("/images/a.jpg", (c) => c.json({ ok: true }));
+      scoped.post("/webhooks/yalidine", (c) => c.json({ ok: true }));
+      scoped.get("/authorize", (c) => c.text("consent"));
+      scoped.get("/health", (c) => c.json({ status: "ok" }));
+      scoped.get("/", (c) => c.json({ service: "COD Flow API" }));
+      return scoped;
+    }
+
+    it("serves CORS to the dashboard, storefront and image paths", async () => {
+      const scoped = scopedApp();
+
+      for (const path of ["/api/stores/me", "/store/config", "/images/a.jpg"]) {
+        const res = await scoped.request(path, {
+          headers: { origin: "https://app.example.com" },
+        });
+        expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+          "https://app.example.com",
+        );
+      }
+    });
+
+    it("leaves carrier webhooks outside CORS even for a listed origin", async () => {
+      const res = await scopedApp().request("/webhooks/yalidine", {
+        method: "POST",
+        headers: { origin: "https://app.example.com" },
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+      expect(res.headers.get("Vary")).toBeNull();
+    });
+
+    it("leaves /authorize outside CORS even for a listed origin", async () => {
+      const res = await scopedApp().request("/authorize", {
+        headers: { origin: "https://app.example.com" },
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    });
+
+    it("leaves /health and / outside CORS", async () => {
+      const scoped = scopedApp();
+
+      const health = await scoped.request("/health", {
+        headers: { origin: "https://app.example.com" },
+      });
+      expect(health.headers.get("Access-Control-Allow-Origin")).toBeNull();
+
+      const root = await scoped.request("/", {
+        headers: { origin: "https://app.example.com" },
+      });
+      expect(root.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    });
+
+    it("does not turn an OPTIONS on an excluded path into a CORS verdict", async () => {
+      const res = await scopedApp().request("/webhooks/yalidine", {
+        method: "OPTIONS",
+        headers: { origin: "https://app.example.com" },
+      });
+
+      // The webhook router has no OPTIONS route, so this is the app's own 404 —
+      // not the 403 the preflight policy returns for in-scope paths.
+      expect(res.status).toBe(404);
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    });
+
+    it("does not let a path that merely starts with an allowed prefix through", async () => {
+      const res = await scopedApp().request("/apixyz/leak", {
+        headers: { origin: "https://app.example.com" },
+      });
+
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
     });
   });
 
@@ -247,14 +328,14 @@ describe("CORS Middleware", () => {
     // so headers set before next() never reached them and the browser
     // blocked the response with a CORS error despite the 200.
     it("adds CORS headers to a raw Response for a listed origin", async () => {
-      app.get("/raw", () =>
+      app.get("/images/raw", () =>
         new Response("raw-body", {
           status: 200,
           headers: { "Content-Type": "application/pdf" },
         }),
       );
 
-      const res = await app.request("/raw", {
+      const res = await app.request("/images/raw", {
         headers: { origin: "https://app.example.com" },
       });
 
@@ -264,9 +345,9 @@ describe("CORS Middleware", () => {
     });
 
     it("adds no CORS headers to a raw Response for an unlisted origin", async () => {
-      app.get("/raw", () => new Response("raw-body", { status: 200 }));
+      app.get("/images/raw", () => new Response("raw-body", { status: 200 }));
 
-      const res = await app.request("/raw", {
+      const res = await app.request("/images/raw", {
         headers: { origin: "https://evil.com" },
       });
 
