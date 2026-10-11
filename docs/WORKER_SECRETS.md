@@ -12,7 +12,20 @@ it as compromised and rotate it.
 npx wrangler secret list --config wrangler.toml   # names only
 ```
 
-## The three secrets
+## Inventory
+
+| Field | `WEBHOOK_ENCRYPTION_KEY` |
+|---|---|
+| **Name** | `WEBHOOK_ENCRYPTION_KEY` |
+| **Project** | CodFlow |
+| **Usage** | Chiffrement des secrets webhook |
+| **Worker** | Cloudflare `achil-codflow-server` (cod-server) |
+| **Created** | 2026-10-11 |
+
+`BETTER_AUTH_SECRET` and `MCP_LOGIN_TICKET_SECRET` predate this file; their
+creation dates were not recorded and have not been reconstructed here.
+
+### The three secrets
 
 | Name | Purpose | Consumed by |
 |---|---|---|
