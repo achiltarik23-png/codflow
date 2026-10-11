@@ -25,6 +25,7 @@ import {
   handleYalidineWebhook,
   handleZrWebhook,
 } from "./handlers";
+import { webhookRateLimit } from "./webhook-rate-limit";
 
 const jsonContent = <T extends z.ZodType>(schema: T) => ({
   "application/json": { schema },
@@ -121,6 +122,11 @@ Invalid payloads are rejected with \`400 INVALID_WEBHOOK_PAYLOAD\`; processing f
       "SYSTEM",
       "Webhook processing failed (EXTERNAL_API_FAILURE)"
     ),
+    429: webhookErrorResponse(
+      "WEBHOOK_RATE_LIMITED",
+      "SYSTEM",
+      "Too many deliveries from this source — retry after the Retry-After header. The limit is per carrier per client IP per minute and fails open when the rate-limit store is unavailable"
+    ),
   },
   handler: handleYalidineWebhook,
 });
@@ -154,6 +160,11 @@ Signature/payload failures are rejected with \`400 INVALID_WEBHOOK_PAYLOAD\`; pr
       "SYSTEM",
       "Webhook processing failed (EXTERNAL_API_FAILURE)"
     ),
+    429: webhookErrorResponse(
+      "WEBHOOK_RATE_LIMITED",
+      "SYSTEM",
+      "Too many deliveries from this source — retry after the Retry-After header. The limit is per carrier per client IP per minute and fails open when the rate-limit store is unavailable"
+    ),
   },
   handler: handleZrWebhook,
 });
@@ -161,6 +172,13 @@ Signature/payload failures are rejected with \`400 INVALID_WEBHOOK_PAYLOAD\`; pr
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const webhooksRouter = new OpenAPIHono<AppContext>();
+
+// Ingress rate limit on the delivery routes, ahead of every handler. Mounted as
+// middleware rather than inside a handler so a flooded route costs one KV read
+// instead of a D1 query. Per-carrier budgets, fail-open on KV trouble — see
+// webhook-rate-limit.ts for why the threshold is an arbitrary first value.
+webhooksRouter.use("/yalidine", webhookRateLimit("yalidine"));
+webhooksRouter.use("/zr_express", webhookRateLimit("zr_express"));
 
 webhooksRouter.openapi(yalidineChallengeRoute.route, yalidineChallengeRoute.handler);
 webhooksRouter.openapi(yalidineWebhookRoute.route, yalidineWebhookRoute.handler);

@@ -10,7 +10,11 @@
  * Signed content format: "{svix-id}.{svix-timestamp}.{rawBody}"
  * Secret format:         "whsec_<base64-encoded-secret>"
  * Signature header:      "v1,<base64>" (comma-separated, may contain multiple)
+ *
+ * The signature comparison is constant-time — see cod-shared/lib/timing-safe.ts.
  */
+
+import { timingSafeEqual } from "../../../../cod-shared/lib/timing-safe";
 
 const TOLERANCE_SECONDS = 5 * 60; // 5-minute anti-replay window
 
@@ -67,7 +71,10 @@ export async function verifySvixSignature(
   const signatures = svixSignature.split(" ");
   for (const sig of signatures) {
     const parts = sig.split(",");
-    if (parts[0] === "v1" && parts[1] === computed) {
+    // Version tag carries no secret, so === is fine there. The digest itself is
+    // compared in constant time: a byte-by-byte timing oracle on this check
+    // would let an attacker rebuild the expected signature without the secret.
+    if (parts[0] === "v1" && parts.length >= 2 && timingSafeEqual(parts[1], computed)) {
       return true;
     }
   }
