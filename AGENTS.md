@@ -164,6 +164,12 @@ other is how these drift.
   (`PUBLIC_APP_URL`, `PUBLIC_TRUSTED_ORIGINS`) live in wrangler.toml `[vars]`.
 - `BETTER_AUTH_SECRET` and `MCP_LOGIN_TICKET_SECRET` must be **identical** on
   cod-server and cod-client-astro (shared auth D1 + MCP login-ticket relay).
+- `WEBHOOK_ENCRYPTION_KEY` is the master key that seals carrier webhook secrets
+  in D1. Carrier secrets are HMAC keys, so they cannot be hashed and must stay
+  recoverable — encryption is the only option. **Losing the key makes every
+  stored webhook secret unrecoverable**; back it up with the other master
+  secrets, outside the repo. `docs/WORKER_SECRETS.md` covers it and the
+  reseed procedure.
 - Better Auth 1.7 schema requirements live in migrations 0010/0011:
   `accounts.issuer` ('local:credential', account_id = user id) and
   `jwkss.alg/crv`. cod-client-astro ships its own KV `secondaryStorage` in
