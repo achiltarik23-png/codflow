@@ -5,7 +5,7 @@
  * for inbound webhook deliveries from ZR Express and Yalidine.
  */
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { webhookEvents, orders } from "../db/schema";
 import type { AppDb } from "../db/client";
 
@@ -48,10 +48,32 @@ function isUniqueViolation(err: unknown): boolean {
   return false;
 }
 
+/**
+ * Results that mean the event reached a decision and must never be redone.
+ *
+ * Anything else — "error", "pending" — is a half-finished attempt, and stays
+ * replayable. Skipping those on the carrier's retry is what leaves an order
+ * stuck in its previous status forever: the unique index had already marked
+ * the event as seen while the order write behind it had failed.
+ */
+const TERMINAL_WEBHOOK_RESULTS = new Set(["ok", "ignored", "unmapped"]);
+
+/** True when a stored result means the event is done and must not be reprocessed. */
+export function isTerminalWebhookResult(result: string | null | undefined): boolean {
+  return typeof result === "string" && TERMINAL_WEBHOOK_RESULTS.has(result);
+}
+
+export interface InsertWebhookEventResult {
+  id: string;
+  isDuplicate: boolean;
+  /** Result recorded by the earlier attempt for this (provider, eventId). */
+  previousResult?: string | null;
+}
+
 export async function insertWebhookEvent(
   db: AppDb,
   data: InsertWebhookEventData,
-): Promise<{ id: string; isDuplicate: boolean }> {
+): Promise<InsertWebhookEventResult> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
@@ -70,7 +92,20 @@ export async function insertWebhookEvent(
     return { id, isDuplicate: false };
   } catch (err) {
     if (isUniqueViolation(err)) {
-      return { id: "", isDuplicate: true };
+      // Read what the earlier attempt recorded so the caller can tell
+      // "already handled" from "it failed, try again".
+      const existing = await db
+        .select({ id: webhookEvents.id, result: webhookEvents.result })
+        .from(webhookEvents)
+        .where(
+          and(eq(webhookEvents.provider, data.provider), eq(webhookEvents.eventId, data.eventId)),
+        )
+        .get();
+      return {
+        id: existing?.id ?? "",
+        isDuplicate: true,
+        previousResult: existing?.result ?? null,
+      };
     }
     throw err;
   }
