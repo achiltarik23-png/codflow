@@ -30,7 +30,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getCloudEnv } from "../../cod-server/scripts/cloud-env.mjs";
 
-const { dbName } = getCloudEnv();
+const { dbName } = getCloudEnv({ require: ["COD_DB_NAME"] });
 
 const scryptAsync = promisify(scrypt);
 

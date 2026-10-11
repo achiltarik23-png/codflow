@@ -26,7 +26,7 @@ import { getCloudEnv } from "./cloud-env.mjs";
 
 const remote = process.argv.includes("--remote");
 const dryRun = process.argv.includes("--dry-run");
-const { dbName } = getCloudEnv();
+const { dbName } = getCloudEnv({ require: ["COD_DB_NAME"] });
 
 const statements = buildAllEcotrackCompanyUpserts(ECOTRACK_COURIERS);
 const sql = statements.join("\n");

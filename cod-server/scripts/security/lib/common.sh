@@ -15,8 +15,11 @@ BASE_URL="${BASE_URL:-http://localhost:8787}"
 SEC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVER_DIR="$SEC_DIR/../.."
 if [[ -z "${DB_NAME:-}" ]]; then
-  DB_NAME="$(node -e "import('$SERVER_DIR/scripts/cloud-env.mjs').then(m => process.stdout.write(m.getCloudEnv().dbName))")" \
-    || DB_NAME="codflow-os-db"
+  # No fallback: the old `|| DB_NAME="codflow-os-db"` named a database nobody
+  # ever configured, so the run failed on that name instead of on the real
+  # cause. getCloudEnv({ require }) raises before the value is ever used.
+  DB_NAME="$(node -e "import('$SERVER_DIR/scripts/cloud-env.mjs').then(m => process.stdout.write(m.getCloudEnv({ require: ['COD_DB_NAME'] }).dbName))")" \
+    || { echo "✗ COD_DB_NAME not set — define it in <repo-root>/.env (see .env.example)"; exit 1; }
 fi
 PARALLEL="${PARALLEL:-12}"
 KEYS_CACHE="/tmp/codflow-sectest-keys.${DB_NAME}.txt"
