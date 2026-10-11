@@ -33,7 +33,7 @@ export function CompanyWebhookSetupCard({
   const [saving, setSaving] = useState(false);
 
   const webhookUrl = `${publicApiUrl()}/webhooks/yalidine`;
-  const secretSet = !!company?.webhookSecret;
+  const secretSet = company?.hasWebhookSecret ?? false;
 
   function copyUrl() {
     void navigator.clipboard?.writeText(webhookUrl).then(
